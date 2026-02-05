@@ -9,7 +9,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --mem=128G
-#SBATCH --time=1-12:30:00
+#SBATCH --time=1-6:30:00
 
 
 
@@ -20,12 +20,20 @@ source /home/dblackle/miniconda3/etc/profile.d/conda.sh
 export CONDA_ENVS_PATH=/scratch/dblackle/conda/envs
 export CONDA_PKGS_DIRS=/scratch/dblackle/conda/pkgs
 
+
+# # If things go wrong with conda:
+# conda deactivate 2>/dev/null || true
+# conda deactivate
+# rm -rf /scratch/dblackle/conda/envs/rag_eval
+# rm -f  /scratch/dblackle/conda/pkgs/*
+
+
 # conda create -y -p /scratch/dblackle/conda/envs/rag_eval python=3.10 pip
 conda activate /scratch/dblackle/conda/envs/rag_eval
 
 # Example installs
-# python -m pip install --upgrade pip
-# pip install -r requirements.txt
+python -m pip install --upgrade pip
+pip install -r requirements.txt
 
 
 # wget -c -O collection.tar.gz "https://msmarco.z22.web.core.windows.net/msmarcoranking/collection.tar.gz"
@@ -45,7 +53,7 @@ conda activate /scratch/dblackle/conda/envs/rag_eval
 # wget -c -O qrels.dev.small.tsv \
 #   "https://git.uwaterloo.ca/jimmylin/doc2query-data/raw/master/T5-passage/qrels.dev.small.tsv"
 
-# conda install -c conda-forge sentencepiece -y
+conda install -c conda-forge sentencepiece -y
 
 echo "CONDA DONE"
 
@@ -70,48 +78,116 @@ export OLLAMA_HOST="127.0.0.1:11434"
 export OLLAMA_MODELS="/scratch/dblackle/ollama/models"
 mkdir -p "$OLLAMA_MODELS"
 
-# Start server in background
-/scratch/dblackle/ollama/bin/ollama serve > ollama.log 2>&1 &
+RESULTS_BASE="../results"
+K_VALUES=(10 50 100 500 1000)
+# K_VALUES=(1000)
+
+# ---- Paths / config you may want to edit ----
+OLLAMA_BIN="/scratch/dblackle/ollama/bin/ollama"
+OLLAMA_URL="http://127.0.0.1:11434/api/tags"
+MODEL="llama3:70b"
+
+CORPUS_FILE="../datasets/msmarco/collection.tsv"
+QUERIES_FILE="../datasets/msmarco/queries.dev.small.tsv"
+LIMIT=300
+
+# These are the *source* TSVs you already have from your retrieval/rerank stage.
+# Update patterns to match your real filenames.
+TREE_SRC_PATTERN="tree_out_k%d.tsv"
+PACMANN_SRC_PATTERN="pacmann_out_k%d.tsv"
+BINS_SRC_PATTERN="bins_out_k%d.tsv"
+# --------------------------------------------
+
+wait_for_ollama() {
+  local tries="${1:-60}"
+  for _ in $(seq 1 "${tries}"); do
+    if curl -sf "${OLLAMA_URL}" >/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+cleanup() {
+  if [[ -n "${OLLAMA_PID:-}" ]]; then
+    kill "${OLLAMA_PID}" >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup EXIT
+
+run_one() {
+  local method="$1"       # tree | pacmann | bins
+  local k="$2"
+  local src_tsv="$3"
+
+  local outdir="${RESULTS_BASE}/${method}_${k}"
+  mkdir -p "${outdir}"
+
+  if [[ ! -f "${src_tsv}" ]]; then
+    echo "WARN: missing input TSV for ${method} k=${k}: ${src_tsv} (skipping)"
+    return 0
+  fi
+
+  # Keep a copy of the retrieved/reranked TSV in the results directory
+  # local rag_tsv="${outdir}/${method}_rag_k${k}.tsv"
+  # cp -f "${src_tsv}" "${retrieved_tsv}"
+
+  # Avoid overwriting between methods/k
+  local predictions_json="${outdir}/predictions_${method}_k${k}.json"
+
+  echo "=== ${method} k=${k} ==="
+
+  python3 rag_msmarco.py \
+    --reranked-file "${src_tsv}" \
+    --corpus-file "${CORPUS_FILE}" \
+    --queries-path "${QUERIES_FILE}" \
+    --output "${predictions_json}" \
+    --limit "${LIMIT}" \
+    > "${outdir}/rag_stage1_${method}_k${k}.out" \
+    2> "${outdir}/rag_stage1_${method}_k${k}.err"
+
+  python3 ragas_eval.py \
+    --predictions-file "${predictions_json}" \
+    --queries-file "${QUERIES_FILE}" \
+    --retrieved-file "${src_tsv}" \
+    --collection "${CORPUS_FILE}" \
+    > "${outdir}/rag_stage2_${method}_k${k}.out" \
+    2> "${outdir}/rag_stage2_${method}_k${k}.err"
+
+  mv rag_evaluation_results_local.csv "${outdir}/ragas_output_${method}_k${k}.csv"
+
+}
+
+# ---- Start Ollama once ----
+"${OLLAMA_BIN}" serve > ollama.log 2>&1 &
 OLLAMA_PID=$!
 
-# Wait until it's responding
-for i in {1..60}; do
-  if curl -sf "http://127.0.0.1:11434/api/tags" >/dev/null; then
-    break
-  fi
-  sleep 1
+if ! wait_for_ollama 60; then
+  echo "ERROR: Ollama did not become ready within timeout."
+  exit 1
+fi
+echo "OLLAMA SERVER READY"
+
+# Pull once (no-op if already present)
+"${OLLAMA_BIN}" pull "${MODEL}" > ollama_pull.out 2> ollama_pull.err
+echo "OLLAMA MODEL READY: ${MODEL}"
+# --------------------------
+
+for k in "${K_VALUES[@]}"; do
+  # tree_src="$(printf "${TREE_SRC_PATTERN}" "${k}")"
+  # pac_src="$(printf "${PACMANN_SRC_PATTERN}" "${k}")"
+  # bins_src="$(printf "${BINS_SRC_PATTERN}" "${k}")"
+
+  tree_src="${RESULTS_BASE}/tree_${k}/tree_out_k${k}.tsv"
+  pac_src="${RESULTS_BASE}/pacmann_${k}/pacmann_out_k${k}.tsv"
+#  bins_src="${RESULTS_BASE}/bins_${k}/bins_out_k${k}.tsv"
+  bins_src="${RESULTS_BASE}/bins_${k}/reranked_bins_k${k}.tsv"
+
+
+  run_one "pacmann" "${k}" "${pac_src}"
+#  run_one "tree"   "${k}" "${tree_src}"
+  run_one "bins"   "${k}" "${bins_src}"
 done
 
-echo "OLLAMA SERVER DONE"
-
-# Pull model (NOTE: llama3:70b is very large; expect long download)
-/scratch/dblackle/ollama/bin/ollama pull llama3:70b
-
-echo "OLLAMA PULLED, STARTING SCRIPT!"
-
-# -------------------------
-# Run your pipeline
-# -------------------------
-python rag_msmarco.py \
-  --reranked-file bm25tree_formatted.tsv \
-  --corpus-file collection.tsv \
-  --queries-path queries.dev.small.tsv \
-  --output output.json \
-  --limit 300
-
-  echo "\n ------- GENERATION COMPLETE, MOVIN TO EVALUATION -------- \n"
-
-python ragas_eval.py \
-  --predictions-file output.json \
-  --queries-file queries.dev.small.tsv \
-  --retrieved-file bm25tree_formatted.tsv \
-  --collection collection.tsv
-
-# Clean up Ollama (job end would kill it anyway, but tidy)
-kill "$OLLAMA_PID" || true
-
-# # run RAG on the retrieved context to generate answer using T5
-# python rag_msmarco.py --reranked-file bm25tree_formatted.tsv --corpus-file collection.tsv --queries-path queries.dev.small.tsv --output output.json --limit 300
-
-# # run evaluation
-# python ragas_eval.py --predictions-file output.json --queries-file queries.dev.small.tsv 
+echo "DONE"
