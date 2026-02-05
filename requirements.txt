@@ -1,0 +1,10 @@
+datasets
+langchain-huggingface
+langchain-ollama
+pandas
+ragas
+torch
+tqdm
+transformers
+torch
+torchvision

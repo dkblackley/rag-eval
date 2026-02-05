@@ -22,13 +22,14 @@ export CONDA_PKGS_DIRS=/scratch/dblackle/conda/pkgs
 
 
 # # If things go wrong with conda:
-# conda deactivate 2>/dev/null || true
-# conda deactivate
-# rm -rf /scratch/dblackle/conda/envs/rag_eval
-# rm -f  /scratch/dblackle/conda/pkgs/*
+ conda deactivate 2>/dev/null || true
+ conda deactivate
+ rm -rf /scratch/dblackle/conda/envs/rag_eval
+ rm -f  /scratch/dblackle/conda/pkgs/*
+conda remove /scratch/dblackle/conda/envs/rag_eval
+conda create -y -p /scratch/dblackle/conda/envs/rag_eval python=3.10 pip
 
 
-# conda create -y -p /scratch/dblackle/conda/envs/rag_eval python=3.10 pip
 conda activate /scratch/dblackle/conda/envs/rag_eval
 
 # Example installs
