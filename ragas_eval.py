@@ -35,7 +35,7 @@ def update_json_file(filename, key, value): # opens and writes to a json
 # Ensure you have run `ollama pull llama3` in your terminal first.
 print("Initializing Local Judge (Llama 3 via Ollama)...")
 ollama_model = ChatOllama(
-    model="llama3:70b", 
+    model="llama3:70b",
     temperature=0, # Deterministic grading
     base_url="http://localhost:11434" # Default Ollama URL
 )
@@ -87,25 +87,25 @@ def prepare_dataset(pred_file, queries_file, retrieved_file, collection_file):
 
     print("Initializing Retriever to fetch contexts...")
     retriever = Retrieval(reranked_file=retrieved_file, corpus_file=collection_file)
-    
+
     data_points = {
         "question": [],
         "answer": [],
-        "contexts": [] 
+        "contexts": []
     }
-    
+
     print("Re-constructing evaluation dataset...")
     for qid, answer_text in predictions.items():
         if qid not in questions_map:
             continue
-            
+
         question_text = questions_map[qid]
         retrieved_docs = retriever.retrieve(qid)
-        
+
         data_points["question"].append(question_text)
         data_points["answer"].append(answer_text)
         data_points["contexts"].append(retrieved_docs)
-        
+
     return Dataset.from_dict(data_points)
 
 if __name__ == "__main__":
@@ -183,25 +183,4 @@ if __name__ == "__main__":
     output_csv = args.output_csv
     df.to_csv(output_csv, index=False)
     print(f"\nDetailed per-query results saved to {output_csv}")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
