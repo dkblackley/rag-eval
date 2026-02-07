@@ -58,7 +58,13 @@ pip install "urllib3<1.27" joblib
 conda install -c conda-forge sentencepiece -y
 
 conda install -c conda-forge libstdcxx-ng
-export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
+# 1. Get the path where pip installed the correct nvidia libraries
+export NVIDIA_LIB_PATH=$CONDA_PREFIX/lib/python3.10/site-packages/nvidia
+
+# 2. Put the nvidia paths FIRST, then Conda (for libstdc++), then system
+export LD_LIBRARY_PATH=$NVIDIA_LIB_PATH/nccl/lib:$NVIDIA_LIB_PATH/cublas/lib:$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
+
+
 # Upgrade torch (and ensure you get a version compatible with your CUDA)
 pip install --upgrade "torch>=2.1"
 
