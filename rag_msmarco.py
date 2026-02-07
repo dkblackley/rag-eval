@@ -83,6 +83,7 @@ class Retrieval:
                 retrieved_texts.append(self.corpus[doc_id])
             else:
                 retrieved_texts.append("[DOCUMENT NOT FOUND IN CORPUS]")
+                print(f"Warning: Document {doc_id} not found in corpus of length {len(self.corpus)}")
 
         return retrieved_texts
 
