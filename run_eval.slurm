@@ -32,7 +32,6 @@ export CONDA_PKGS_DIRS=/scratch/dblackle/conda/pkgs
 
 conda activate /scratch/dblackle/conda/envs/rag_eval
 
-# Example installs
 python -m pip install --upgrade pip
 pip install "urllib3<1.27" "torch>=2.1" "torchvision>=0.16" joblib
 pip install -r requirements.txt
@@ -57,12 +56,8 @@ pip install -r requirements.txt
 conda install -c conda-forge sentencepiece -y
 
 conda install -c conda-forge libstdcxx-ng
-# 1. Get the path where pip installed the correct nvidia libraries
-export NVIDIA_LIB_PATH=$CONDA_PREFIX/lib/python3.10/site-packages/nvidia
-
-# 2. Put the nvidia paths FIRST, then Conda (for libstdc++), then system
-export LD_LIBRARY_PATH=$NVIDIA_LIB_PATH/nccl/lib:$NVIDIA_LIB_PATH/cublas/lib:$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
-
+export NVIDIA_LIB=$CONDA_PREFIX/lib/python3.10/site-packages/nvidia
+export LD_LIBRARY_PATH=$NVIDIA_LIB/nccl/lib:$NVIDIA_LIB/cublas/lib:$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
 
 # Upgrade torch (and ensure you get a version compatible with your CUDA)
 pip install --upgrade "torch>=2.1"
