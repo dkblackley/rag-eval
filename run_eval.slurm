@@ -14,8 +14,6 @@
 # get rid of the error file so I always know it's fresh
 rm ../results/pacmann_10/rag_stage1_pacmann_k10.err
 
-set -e
-
 source /home/dblackle/miniconda3/etc/profile.d/conda.sh
 
 export CONDA_ENVS_PATH=/scratch/dblackle/conda/envs
