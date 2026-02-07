@@ -11,7 +11,8 @@
 #SBATCH --mem=128G
 #SBATCH --time=1-6:30:00
 
-
+# get rid of the error file so I always know it's fresh
+rm ../results/pacmann_10/rag_stage1_pacmann_k10.err
 
 set -e
 
@@ -27,10 +28,11 @@ export CONDA_PKGS_DIRS=/scratch/dblackle/conda/pkgs
 # rm -rf /scratch/dblackle/conda/envs/rag_eval
 # rm -rf  /scratch/dblackle/conda/pkgs/*
 #conda remove /scratch/dblackle/conda/envs/rag_eval
-# conda create -y -p /scratch/dblackle/conda/envs/rag_eval python=3.10 pip
+conda create -y -p /scratch/dblackle/conda/envs/rag_eval python=3.10 pip
 
 
 conda activate /scratch/dblackle/conda/envs/rag_eval
+conda install -c conda-forge sentencepiece libstdcxx-ng -y
 
 python -m pip install --upgrade pip
 pip install "urllib3<1.27" "torch>=2.1" "torchvision>=0.16" joblib
