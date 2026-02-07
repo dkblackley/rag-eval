@@ -59,6 +59,8 @@ conda install -c conda-forge sentencepiece -y
 
 conda install -c conda-forge libstdcxx-ng
 export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
+# Upgrade torch (and ensure you get a version compatible with your CUDA)
+pip install --upgrade "torch>=2.1"
 
 echo "CONDA DONE"
 
