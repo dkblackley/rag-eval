@@ -34,7 +34,7 @@ conda install -c conda-forge libstdcxx-ng -y
 # 3. Install Python Dependencies
 # We install torch/torchvision explicitly to ensure versions match
 pip install --upgrade pip
-pip install "urllib3<1.27" "torch>=2.1" "torchvision>=0.16" joblib sentencepiece
+pip install "urllib3<1.27" "torch>=2.1" "torchvision>=0.16" joblib sentencepiece sentence-transformers
 pip install -r requirements.txt
 
 # --- LIBRARY FIX (The "Nuclear" Option) ---
