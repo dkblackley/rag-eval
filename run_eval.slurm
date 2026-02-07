@@ -19,23 +19,45 @@ source /home/dblackle/miniconda3/etc/profile.d/conda.sh
 export CONDA_ENVS_PATH=/scratch/dblackle/conda/envs
 export CONDA_PKGS_DIRS=/scratch/dblackle/conda/pkgs
 
-
-# # If things go wrong with conda:
-# conda deactivate 2>/dev/null || true
-conda deactivate
-conda remove /scratch/dblackle/conda/envs/rag_eval
+# --- FRESH INSTALL START ---
+# 1. Wipe and recreate environment
+conda deactivate 2>/dev/null || true
 rm -rf /scratch/dblackle/conda/envs/rag_eval
-rm -rf  /scratch/dblackle/conda/pkgs/*
-#
 conda create -y -p /scratch/dblackle/conda/envs/rag_eval python=3.10 pip
 
-
 conda activate /scratch/dblackle/conda/envs/rag_eval
-conda install -c conda-forge sentencepiece libstdcxx-ng -y
 
-python -m pip install --upgrade pip
-pip install "urllib3<1.27" "torch>=2.1" "torchvision>=0.16" joblib
+# 2. Install ONLY the system helper via Conda (Fixes GLIBCXX error)
+# DO NOT install sentencepiece here; we will let pip handle it to avoid conflicts.
+conda install -c conda-forge libstdcxx-ng -y
+
+# 3. Install Python Dependencies
+# We install torch/torchvision explicitly to ensure versions match
+pip install --upgrade pip
+pip install "urllib3<1.27" "torch>=2.1" "torchvision>=0.16" joblib sentencepiece
 pip install -r requirements.txt
+
+# --- LIBRARY FIX (The "Nuclear" Option) ---
+# We force the system to load the PIP-installed NCCL library first.
+# This fixes "undefined symbol: ncclMemFree"
+echo "Locating NVIDIA libraries..."
+SITE_PACKAGES=$CONDA_PREFIX/lib/python3.10/site-packages
+NCCL_LIB=$(find "$SITE_PACKAGES" -name "libnccl.so.2*" | head -n 1)
+
+if [ -f "$NCCL_LIB" ]; then
+    echo "Found NCCL Lib: $NCCL_LIB"
+    export LD_PRELOAD=$NCCL_LIB
+else
+    echo "WARNING: Could not find libnccl.so.2 in site-packages!"
+fi
+
+# Set LD_LIBRARY_PATH to include Conda lib (for libstdc++)
+# but put the Nvidia folders first just in case.
+export NVIDIA_DIR=$SITE_PACKAGES/nvidia
+export LD_LIBRARY_PATH=$NVIDIA_DIR/nccl/lib:$NVIDIA_DIR/cublas/lib:$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
+# --- END FIX ---
+
+echo "CONDA DONE"
 
 # wget -c -O collection.tar.gz "https://msmarco.z22.web.core.windows.net/msmarcoranking/collection.tar.gz"
 # tar -xzf collection.tar.gz
@@ -54,16 +76,6 @@ pip install -r requirements.txt
 # wget -c -O qrels.dev.small.tsv \
 #   "https://git.uwaterloo.ca/jimmylin/doc2query-data/raw/master/T5-passage/qrels.dev.small.tsv"
 
-conda install -c conda-forge sentencepiece -y
-
-conda install -c conda-forge libstdcxx-ng
-export NVIDIA_LIB=$CONDA_PREFIX/lib/python3.10/site-packages/nvidia
-export LD_LIBRARY_PATH=$NVIDIA_LIB/nccl/lib:$NVIDIA_LIB/cublas/lib:$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
-
-# Upgrade torch (and ensure you get a version compatible with your CUDA)
-pip install --upgrade "torch>=2.1"
-
-echo "CONDA DONE"
 
 # Optional but recommended: keep HF/transformers cache off $HOME
 export HF_HOME=/scratch/dblackle/hf
