@@ -189,12 +189,12 @@ for k in "${K_VALUES[@]}"; do
 
   tree_src="${RESULTS_BASE}/tree_${k}/tree_out_k${k}.tsv"
   pac_src="${RESULTS_BASE}/pacmann_${k}/pacmann_out_k${k}.tsv"
-#  bins_src="${RESULTS_BASE}/bins_${k}/bins_out_k${k}.tsv"
-  bins_src="${RESULTS_BASE}/bins_${k}/reranked_bins_k${k}.tsv"
+  bins_src="${RESULTS_BASE}/bins_${k}/bins_out_k${k}.tsv"
+  # bins_src="${RESULTS_BASE}/bins_${k}/reranked_bins_k${k}.tsv"
 
 
   run_one "pacmann" "${k}" "${pac_src}"
-#  run_one "tree"   "${k}" "${tree_src}"
+  run_one "tree"   "${k}" "${tree_src}"
   run_one "bins"   "${k}" "${bins_src}"
 done
 
