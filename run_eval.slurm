@@ -57,6 +57,8 @@ pip install "urllib3<1.27" joblib
 
 conda install -c conda-forge sentencepiece -y
 
+export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
+
 echo "CONDA DONE"
 
 # Optional but recommended: keep HF/transformers cache off $HOME
