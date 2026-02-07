@@ -35,6 +35,7 @@ conda activate /scratch/dblackle/conda/envs/rag_eval
 # Example installs
 python -m pip install --upgrade pip
 pip install -r requirements.txt
+pip install "urllib3<1.27" joblib
 
 
 # wget -c -O collection.tar.gz "https://msmarco.z22.web.core.windows.net/msmarcoranking/collection.tar.gz"
