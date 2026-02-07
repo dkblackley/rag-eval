@@ -57,6 +57,7 @@ pip install "urllib3<1.27" joblib
 
 conda install -c conda-forge sentencepiece -y
 
+conda install -c conda-forge libstdcxx-ng
 export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
 
 echo "CONDA DONE"
