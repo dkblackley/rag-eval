@@ -111,7 +111,7 @@ MODEL="llama3:70b"
 
 CORPUS_FILE="../datasets/msmarco/collection.tsv"
 QUERIES_FILE="../datasets/msmarco/queries.dev.small.tsv"
-LIMIT=3
+LIMIT=300
 
 # These are the *source* TSVs you already have from your retrieval/rerank stage.
 # Update patterns to match your real filenames.
