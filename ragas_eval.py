@@ -24,7 +24,7 @@ def update_json_file(filename, new_data): # opens and writes to a json
         for key, value in new_data.items():
             data[str(key)] = str(value)
         f.seek(0)
-        json.dump(data, f)
+        json.dump(data, f, indent=4)
         f.truncate()
 
 # ---------------------------------------------------------
@@ -185,8 +185,8 @@ if __name__ == "__main__":
     df = results.to_pandas()
 
     final_scores = {
-        "faithfulness": results["faithfulness"],
-        "answer_relevancy": results["answer_relevancy"]
+        "faithfulness": sum(results["faithfulness"]) / len(results["faithfulness"]),
+        "answer_relevancy": sum(results["answer_relevancy"]) / len(results["answer_relevancy"])
     }
 
     print(f"\nUpdating {args.metadata} with {final_scores}")
