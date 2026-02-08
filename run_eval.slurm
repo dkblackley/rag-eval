@@ -19,23 +19,25 @@ source /home/dblackle/miniconda3/etc/profile.d/conda.sh
 export CONDA_ENVS_PATH=/scratch/dblackle/conda/envs
 export CONDA_PKGS_DIRS=/scratch/dblackle/conda/pkgs
 
-# --- FRESH INSTALL START ---
-# 1. Wipe and recreate environment
-conda deactivate 2>/dev/null || true
-rm -rf /scratch/dblackle/conda/envs/rag_eval
-conda create -y -p /scratch/dblackle/conda/envs/rag_eval python=3.10 pip
+## --- FRESH INSTALL START ---
+## 1. Wipe and recreate environment
+#conda deactivate 2>/dev/null || true
+#rm -rf /scratch/dblackle/conda/envs/rag_eval
+#conda create -y -p /scratch/dblackle/conda/envs/rag_eval python=3.10 pip
+#
+#conda activate /scratch/dblackle/conda/envs/rag_eval
+#
+## 2. Install ONLY the system helper via Conda (Fixes GLIBCXX error)
+## DO NOT install sentencepiece here; we will let pip handle it to avoid conflicts.
+#conda install -c conda-forge libstdcxx-ng -y
+#
+## 3. Install Python Dependencies
+## We install torch/torchvision explicitly to ensure versions match
+#pip install --upgrade pip
+#pip install "urllib3<1.27" "torch>=2.1" "torchvision>=0.16" joblib sentencepiece sentence-transformers
+#pip install -r requirements.txt
 
 conda activate /scratch/dblackle/conda/envs/rag_eval
-
-# 2. Install ONLY the system helper via Conda (Fixes GLIBCXX error)
-# DO NOT install sentencepiece here; we will let pip handle it to avoid conflicts.
-conda install -c conda-forge libstdcxx-ng -y
-
-# 3. Install Python Dependencies
-# We install torch/torchvision explicitly to ensure versions match
-pip install --upgrade pip
-pip install "urllib3<1.27" "torch>=2.1" "torchvision>=0.16" joblib sentencepiece sentence-transformers
-pip install -r requirements.txt
 
 # --- LIBRARY FIX (The "Nuclear" Option) ---
 # We force the system to load the PIP-installed NCCL library first.
