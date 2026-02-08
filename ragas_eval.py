@@ -187,9 +187,14 @@ if __name__ == "__main__":
     print("\nEvaluation Results:")
     print(results)
 
+    # Filter out NaNs (failed rows) so they don't break the average
+    f_scores = [x for x in results["faithfulness"] if not pd.isna(x)]
+    r_scores = [x for x in results["answer_relevancy"] if not pd.isna(x)]
+
     final_scores = {
-        "faithfulness": sum(results["faithfulness"]) / len(results["faithfulness"]),
-        "answer_relevancy": sum(results["answer_relevancy"]) / len(results["answer_relevancy"])
+        # safely calculate average, default to 0 if list is empty
+        "faithfulness": sum(f_scores) / len(results["faithfulness"]) if f_scores else 0,
+        "answer_relevancy": sum(r_scores) / len(results["answer_relevancy"]) if r_scores else 0
     }
 
     print(f"\nUpdating {args.metadata} with {final_scores}")
