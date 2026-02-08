@@ -184,6 +184,9 @@ if __name__ == "__main__":
     # 3. Save Results
     df = results.to_pandas()
 
+    print("\nEvaluation Results:")
+    print(results)
+
     final_scores = {
         "faithfulness": sum(results["faithfulness"]) / len(results["faithfulness"]),
         "answer_relevancy": sum(results["answer_relevancy"]) / len(results["answer_relevancy"])
