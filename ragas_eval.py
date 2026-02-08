@@ -184,8 +184,9 @@ if __name__ == "__main__":
     # 3. Save Results
     df = results.to_pandas()
 
+    print(f"\nUpdating {args.metadata} with {results.scores}")
     update_json_file(args.metadata, results.scores)
-    print(f"\nUpdated {args.metadata} with {results.scores}")
+
 
     output_csv = args.output_csv
     df.to_csv(output_csv, index=False)
