@@ -156,6 +156,8 @@ run_one() {
   # Avoid overwriting between methods/k
   local predictions_json="${outdir}/predictions_${method}_k${k}.json"
 
+  rm "${predictions_json}"
+
   echo "=== ${method} k=${k} ==="
 
   python3 rag_msmarco.py \
