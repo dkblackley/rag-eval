@@ -157,6 +157,7 @@ run_one() {
 
   # Avoid overwriting between methods/k
   local predictions_json="${outdir}/predictions_${method}_k${k}.json"
+  local metadata="${outdir}/${method}_${k}_metadata.json"
 
   rm "${predictions_json}"
 
@@ -176,6 +177,7 @@ run_one() {
     --queries-file "${QUERIES_FILE}" \
     --retrieved-file "${src_tsv}" \
     --collection "${CORPUS_FILE}" \
+    --metadata "${metadata}" \
     > "${outdir}/rag_stage2_${method}_k${k}.out" \
     2> "${outdir}/rag_stage2_${method}_k${k}.err"
 

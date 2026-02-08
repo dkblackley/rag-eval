@@ -18,10 +18,11 @@ except ImportError:
     exit()
 
 
-def update_json_file(filename, key, value): # opens and writes to a json
+def update_json_file(filename, new_data): # opens and writes to a json
     with open(filename, 'r+') as f:
         data = json.load(f)
-        data[key] = value
+        for key, value in new_data.items():
+            data[key] = value
         f.seek(0)
         json.dump(data, f)
         f.truncate()
@@ -147,6 +148,11 @@ if __name__ == "__main__":
         type=int,
         default=1,
         help="Number of concurrent evaluation workers. Use 1 for sequential.",
+    )
+    p.add_argument(
+        "--metadata",
+        default="metadata.json",
+        help="Path to metadata file.",
     )
     args =  p.parse_args()
 
