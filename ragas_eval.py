@@ -22,7 +22,7 @@ def update_json_file(filename, new_data): # opens and writes to a json
     with open(filename, 'r+') as f:
         data = json.load(f)
         for key, value in new_data.items():
-            data[key] = value
+            data[str(key)] = str(value)
         f.seek(0)
         json.dump(data, f)
         f.truncate()
@@ -184,8 +184,8 @@ if __name__ == "__main__":
     # 3. Save Results
     df = results.to_pandas()
 
-    update_json_file(args.metadata, dict(results))
-    print(f"\nUpdated {args.metadata} with {dict(results)}")
+    update_json_file(args.metadata, results.scores)
+    print(f"\nUpdated {args.metadata} with {results.scores}")
 
     output_csv = args.output_csv
     df.to_csv(output_csv, index=False)
