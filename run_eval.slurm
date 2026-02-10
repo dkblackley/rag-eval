@@ -211,9 +211,9 @@ for k in "${K_VALUES[@]}"; do
   # bins_src="${RESULTS_BASE}/bins_${k}/reranked_bins_k${k}.tsv"
 
 
-  run_one "pacmann" "${k}" "${pac_src}"
+  # run_one "pacmann" "${k}" "${pac_src}"
   run_one "tree"   "${k}" "${tree_src}"
-  run_one "bins"   "${k}" "${bins_src}"
+  # run_one "bins"   "${k}" "${bins_src}"
 done
 
 echo "DONE"
