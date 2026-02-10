@@ -101,8 +101,8 @@ export OLLAMA_MODELS="/scratch/dblackle/ollama/models"
 mkdir -p "$OLLAMA_MODELS"
 
 RESULTS_BASE="../results"
-# K_VALUES=(10 50 100 500 1000)
-K_VALUES=(10 50 100)
+K_VALUES=(10 50 100 500 1000)
+# K_VALUES=(1000)
 
 # ---- Paths / config you may want to edit ----
 OLLAMA_BIN="/scratch/dblackle/ollama/bin/ollama"
