@@ -31,16 +31,17 @@ fi
 export NVIDIA_DIR=$SITE_PACKAGES/nvidia
 export LD_LIBRARY_PATH=$NVIDIA_DIR/nccl/lib:$NVIDIA_DIR/cublas/lib:$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
 
+
 # --- HUGGINGFACE & OLLAMA ENV ---
 export HF_HOME=/scratch/dblackle/hf
 export TRANSFORMERS_CACHE=/scratch/dblackle/hf/transformers
 export HF_DATASETS_CACHE=/scratch/dblackle/hf/datasets
 
 OLLAMA_DIR="/scratch/dblackle/ollama"
-export PATH="$OLLAMA_DIR/usr/bin:$PATH"
-export LD_LIBRARY_PATH="$OLLAMA_DIR/usr/lib/ollama:${LD_LIBRARY_PATH:-}"
+export PATH="$OLLAMA_DIR/bin:$PATH"
+export LD_LIBRARY_PATH="$OLLAMA_DIR/lib/ollama:${LD_LIBRARY_PATH:-}"
 export OLLAMA_MODELS="/scratch/dblackle/ollama/models"
-OLLAMA_BIN="/scratch/dblackle/ollama/bin/ollama"
+OLLAMA_BIN="$OLLAMA_DIR/bin/ollama"
 MODEL="llama3:70b"
 
 # --- DYNAMIC PORT FIX FOR CONCURRENCY ---
