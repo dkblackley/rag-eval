@@ -18,7 +18,7 @@ echo "Date: $(date)"
 echo "========================================"
 
 # Run the build script we created earlier
-bash build.sh
+bash setup.sh
 
 echo "========================================"
 echo "Build process finished at: $(date)"
