@@ -1,6 +1,6 @@
 #!/bin/bash -l
 #SBATCH --job-name=setup_env
-#SBATCH --partition=cpuq      # Change this if your cluster has a different standard CPU queue (e.g., 'standard' or 'interactive')
+#SBATCH --partition=normal
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=4
