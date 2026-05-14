@@ -16,7 +16,7 @@ export CONDA_PKGS_DIRS=/scratch/dblackle/conda/pkgs
 conda create -y -p /scratch/dblackle/conda/envs/rag_eval python=3.10 pip
 conda activate /scratch/dblackle/conda/envs/rag_eval
 
-conda install -c conda-forge libstdcxx-ng -y
+conda install -c conda-forge libstdcxx-ng zstd -y
 pip install --upgrade pip
 pip install "urllib3<1.27" "torch>=2.1" "torchvision>=0.16" joblib sentencepiece sentence-transformers
 # pip install -r requirements.txt
@@ -26,7 +26,8 @@ OLLAMA_DIR="/scratch/dblackle/ollama"
 mkdir -p "$OLLAMA_DIR"
 
 # Download and extract the AMD64 tarball directly into the scratch directory
-curl -fsSL "https://ollama.com/download/ollama-linux-amd64.tar.zst" | tar x -C "$OLLAMA_DIR"
+curl -fsSL "https://ollama.com/download/ollama-linux-amd64.tar.zst" | zstd -d | tar x -C "$OLLAMA_DIR"
+
 
 # Note: The tarball extracts into bin/ and lib/
 export PATH="$OLLAMA_DIR/bin:$PATH"
