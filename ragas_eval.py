@@ -80,11 +80,16 @@ def prepare_dataset(pred_file, queries_file, retrieved_file, collection_file):
 
     print(f"Loading queries from {queries_file}...")
     questions_map = {}
-    with open(queries_file, 'r') as f:
+    with open(queries_file, 'r', encoding='utf-8') as f:
         for line in f:
-            parts = line.strip().split('\t')
-            if len(parts) >= 2:
-                questions_map[parts[0]] = parts[1]
+            if queries_file.endswith('.jsonl'):
+                data = json.loads(line)
+                qid = str(data.get('_id', ''))
+                questions_map[qid] = data.get('text', '')
+            else:
+                parts = line.strip().split('\t')
+                if len(parts) >= 2:
+                    questions_map[parts[0]] = parts[1]
 
     print("Initializing Retriever to fetch contexts...")
     retriever = Retrieval(reranked_file=retrieved_file, corpus_file=collection_file)

@@ -5,6 +5,7 @@ import csv
 import sys
 from tqdm import tqdm
 from transformers import T5Tokenizer, T5ForConditionalGeneration
+import json
 
 # Increase CSV field limit for large MS MARCO documents
 csv.field_size_limit(sys.maxsize)
@@ -49,7 +50,7 @@ class Retrieval:
 
     def _load_corpus(self, filepath):
         """
-        Parses standard MS MARCO collection: docid \t text
+        Parses standard MS MARCO collection (.tsv) or SciFact/TREC (.jsonl)
         Returns: dict {docid: text}
         """
         corpus = {}
@@ -57,13 +58,21 @@ class Retrieval:
             with open(filepath, 'r', encoding='utf-8') as f:
                 # Iterate line by line for memory efficiency
                 for line in tqdm(f, desc="Loading Corpus"):
-                    parts = line.split('\t')
-                    if len(parts) >= 2:
-                        docid = parts[0]
-                        text = parts[1].strip()
-                        corpus[docid] = text
+                    if filepath.endswith('.jsonl'):
+                        data = json.loads(line)
+                        docid = str(data.get('_id', ''))
+                        # SciFact has a title, MS MARCO doesn't. Combine if present.
+                        title = data.get('title', '')
+                        text = data.get('text', '')
+                        corpus[docid] = f"{title} {text}".strip()
+                    else:
+                        parts = line.split('\t')
+                        if len(parts) >= 2:
+                            docid = parts[0]
+                            text = parts[1].strip()
+                            corpus[docid] = text
         except FileNotFoundError:
-            print(f"Error: {filepath} not found. Ensure MS MARCO collection.tsv is present.")
+            print(f"Error: {filepath} not found. Ensure corpus file is present.")
         return corpus
 
     def retrieve(self, query_id):
@@ -178,12 +187,19 @@ if __name__ == "__main__":
     output_answers = {}
 
     try:
-        with open(queries_path, 'r') as f:
-            # Limit to first 5 for testing; remove [islice] loop to run all
+        with open(queries_path, 'r', encoding='utf-8') as f:
+            # Limit to first N for testing; remove [islice] loop to run all
             from itertools import islice
 
             for line in islice(f, args.limit):
-                qid, query_text = line.strip().split('\t')
+                if queries_path.endswith('.jsonl'):
+                    data = json.loads(line)
+                    qid = str(data.get('_id', ''))
+                    query_text = data.get('text', '')
+                else:
+                    parts = line.strip().split('\t')
+                    if len(parts) < 2: continue
+                    qid, query_text = parts[0], parts[1]
 
                 # A. Retrieve
                 top_docs = retriever.retrieve(qid)
