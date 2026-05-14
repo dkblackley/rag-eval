@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=32G             # Plenty of memory for Conda to solve environments
+#SBATCH --mem=100G             # Plenty of memory for Conda to solve environments
 #SBATCH --time=04:00:00       # Gives plenty of time for downloading Llama3:70b
 #SBATCH --output=build_%j.out
 #SBATCH --error=build_%j.err
