@@ -26,7 +26,7 @@ OLLAMA_DIR="/scratch/dblackle/ollama"
 mkdir -p "$OLLAMA_DIR"
 
 # Download and extract the AMD64 tarball directly into the scratch directory
-curl -fsSL "https://ollama.com/download/ollama-linux-amd64.tar.zst" | tar zx -C "$OLLAMA_DIR"
+curl -fsSL "https://ollama.com/download/ollama-linux-amd64.tar.zst" | tar x -C "$OLLAMA_DIR"
 
 # Note: The tarball extracts into bin/ and lib/
 export PATH="$OLLAMA_DIR/bin:$PATH"
