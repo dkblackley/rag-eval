@@ -19,8 +19,8 @@ module --quiet purge
 module load hosts/hopper
 module load gnu9/9.3.0
 
-source /home/dblackle/miniconda3/etc/profile.d/conda.sh
-conda activate /scratch/dblackle/conda/envs/rag_eval
+source /projects/evgenios/dblackle/miniconda3/etc/profile.d/conda.sh
+conda activate /projects/evgenios/dblackle/miniconda3/conda/envs/rag_eval
 
 # --- LIBRARY FIX ---
 SITE_PACKAGES=$CONDA_PREFIX/lib/python3.10/site-packages
@@ -33,14 +33,14 @@ export LD_LIBRARY_PATH=$NVIDIA_DIR/nccl/lib:$NVIDIA_DIR/cublas/lib:$CONDA_PREFIX
 
 
 # --- HUGGINGFACE & OLLAMA ENV ---
-export HF_HOME=/scratch/dblackle/hf
-export TRANSFORMERS_CACHE=/scratch/dblackle/hf/transformers
-export HF_DATASETS_CACHE=/scratch/dblackle/hf/datasets
+export HF_HOME=/projects/evgenios/dblackle/hf
+export TRANSFORMERS_CACHE=/projects/evgenios/dblackle/hf/transformers
+export HF_DATASETS_CACHE=/projects/evgenios/dblackle/hf/datasets
 
-OLLAMA_DIR="/scratch/dblackle/ollama"
+OLLAMA_DIR="/projects/evgenios/dblackle/ollama"
 export PATH="$OLLAMA_DIR/bin:$PATH"
 export LD_LIBRARY_PATH="$OLLAMA_DIR/lib/ollama:${LD_LIBRARY_PATH:-}"
-export OLLAMA_MODELS="/scratch/dblackle/ollama/models"
+export OLLAMA_MODELS="/projects/evgenios/dblackle/ollama/models"
 OLLAMA_BIN="$OLLAMA_DIR/bin/ollama"
 MODEL="llama3:70b"
 
