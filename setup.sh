@@ -12,14 +12,14 @@ export CONDA_ENVS_PATH=/projects/evgenios/dblackle/conda/envs
 export CONDA_PKGS_DIRS=/projects/evgenios/dblackle/conda/pkgs
 
 # Wipe and recreate environment (Uncomment the 'rm' line if you want a fresh start)
-# rm -rf /projects/evgenios/dblackle/conda/envs/rag_eval
+rm -rf /projects/evgenios/dblackle/conda/envs/rag_eval
 conda create -y -p /projects/evgenios/dblackle/conda/envs/rag_eval python=3.10 pip
 conda activate /projects/evgenios/dblackle/conda/envs/rag_eval
 
 conda install -c conda-forge libstdcxx-ng zstd -y
 pip install --upgrade pip
 pip install "urllib3<1.27" "torch>=2.1" "torchvision>=0.16" joblib sentencepiece sentence-transformers
-# pip install -r requirements.txt
+pip install -r requirements.txt
 
 echo "=== 3. Installing Ollama ==="
 OLLAMA_DIR="/projects/evgenios/dblackle/ollama"
