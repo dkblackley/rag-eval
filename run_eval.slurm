@@ -9,7 +9,7 @@
 #SBATCH --mem=128G
 #SBATCH --time=1-6:30:00
 
-#SBATCH --array=0-25
+#SBATCH --array=0-29
 #SBATCH --output=logs/RAG_Eval_%A_%a.out
 #SBATCH --error=logs/RAG_Eval_%A_%a.err
 
@@ -29,8 +29,10 @@ module --quiet purge
 module load hosts/hopper
 module load gnu9/9.3.0
 
-source /projects/evgenios/dblackle/miniconda3/etc/profile.d/conda.sh
-conda activate /projects/evgenios/dblackle/miniconda3/conda/envs/rag_eval
+source /projects/evgenios/dblackle/miniforge/etc/profile.d/conda.sh
+export CONDA_ENVS_PATH=/projects/evgenios/dblackle/conda/envs
+export CONDA_PKGS_DIRS=/projects/evgenios/dblackle/conda/pkgs
+conda activate /projects/evgenios/dblackle/conda/envs/rag_eval
 
 # --- LIBRARY FIX ---
 SITE_PACKAGES=$CONDA_PREFIX/lib/python3.10/site-packages
@@ -76,11 +78,11 @@ push_config() {
 }
 
 # bins / msmarco / k10
-push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs5000000_dpb100"    # knee
-push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs100000_dpb1500"    # E>=90%
-push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs100000_dpb2000"    # E>=95%
-push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs100000_dpb2500"    # best mrr
-push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec0_msmarco_k10_bs5000000_dpb2500"   # envelope
+push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs1000000_dpb100"    # knee
+push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs1000000_dpb1500"   # E>=90%
+push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs1000000_dpb2000"   # E>=95%
+push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs1000000_dpb2500"   # best mrr
+push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs1000000_dpb1000"   # envelope
 
 # bins / scifact / k10
 push_config scifact bins 10 "${RESULTS_ROOT}/bins_vec1_scifact_k10_bs1000000_dpb25"     # knee
@@ -103,15 +105,17 @@ push_config scifact pacmann 10 "${RESULTS_ROOT}/pacmann_scifact_k10_steps10_neig
 push_config scifact pacmann 10 "${RESULTS_ROOT}/pacmann_scifact_k10_steps15_neighb32"   # best recall
 push_config scifact pacmann 10 "${RESULTS_ROOT}/pacmann_scifact_k10_steps10_neighb32"   # envelope
 
-# tree / msmarco / k10 (only one run loaded; _nopir was skipped by the loader)
+push_config msmarco tree 10 "${RESULTS_ROOT}/tree_msmarco_b16_r128_s8_L400_k10"
+push_config msmarco tree 10 "${RESULTS_ROOT}/tree_msmarco_b64_r128_s16_L200_k10"
 push_config msmarco tree 10 "${RESULTS_ROOT}/tree_msmarco_b64_r128_s16_L50_k10"
+push_config msmarco tree 10 "${RESULTS_ROOT}/tree_msmarco_b64_r128_s4_L400_k10"
+push_config msmarco tree 10 "${RESULTS_ROOT}/tree_msmarco_b64_r128_s8_L100_k10"
 
-# tree / scifact / k10 (all candidates kept)
-push_config scifact tree 10 "${RESULTS_ROOT}/tree_scifact_b16_r128_s2_L200_k10"
-push_config scifact tree 10 "${RESULTS_ROOT}/tree_scifact_b16_r128_s2_L40_k10"
-push_config scifact tree 10 "${RESULTS_ROOT}/tree_scifact_b32_r128_s2_L5_k10"
+push_config scifact tree 10 "${RESULTS_ROOT}/tree_scifact_b16_r128_s4_L10_k10"
+push_config scifact tree 10 "${RESULTS_ROOT}/tree_scifact_b16_r128_s4_L20_k10"
+push_config scifact tree 10 "${RESULTS_ROOT}/tree_scifact_b32_r128_s2_L20_k10"
+push_config scifact tree 10 "${RESULTS_ROOT}/tree_scifact_b32_r128_s2_L80_k10"
 push_config scifact tree 10 "${RESULTS_ROOT}/tree_scifact_b8_r128_s2_L10_k10"
-push_config scifact tree 10 "${RESULTS_ROOT}/tree_scifact_b8_r128_s2_L20_k10"
 
 N_CONFIGS=${#DIR_ARR[@]}
 task_id=$SLURM_ARRAY_TASK_ID
