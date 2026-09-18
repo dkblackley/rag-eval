@@ -5,7 +5,7 @@ echo "=== 1. Loading Modules ==="
 module --quiet purge
 module load hosts/hopper
 module load gnu9/9.3.0
-source /projects/evgenios/dblackle/miniconda3/etc/profile.d/conda.sh
+source /projects/evgenios/dblackle/miniforge/bin/activate
 
 echo "=== 2. Setting up Conda Environment ==="
 export CONDA_ENVS_PATH=/projects/evgenios/dblackle/conda/envs
