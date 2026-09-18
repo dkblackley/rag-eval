@@ -9,7 +9,7 @@
 #SBATCH --mem=128G
 #SBATCH --time=1-6:30:00
 
-#SBATCH --array=0-29
+#SBATCH --array=0-31
 #SBATCH --output=logs/RAG_Eval_%A_%a.out
 #SBATCH --error=logs/RAG_Eval_%A_%a.err
 
@@ -79,6 +79,7 @@ push_config() {
 
 # bins / msmarco / k10
 push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs1000000_dpb100"    # knee
+push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs1000000_dpb250"    # knee2
 push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs1000000_dpb1500"   # E>=90%
 push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs1000000_dpb2000"   # E>=95%
 push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs1000000_dpb2500"   # best mrr
@@ -86,6 +87,7 @@ push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs1000000_dpb
 
 # bins / scifact / k10
 push_config scifact bins 10 "${RESULTS_ROOT}/bins_vec1_scifact_k10_bs1000000_dpb25"     # knee
+push_config scifact bins 10 "${RESULTS_ROOT}/bins_vec1_scifact_k10_bs1000000_dpb50"     # knee2
 push_config scifact bins 10 "${RESULTS_ROOT}/bins_vec1_scifact_k10_bs1000000_dpb250"    # E>=90%
 push_config scifact bins 10 "${RESULTS_ROOT}/bins_vec1_scifact_k10_bs100_dpb1500"       # E>=95%
 push_config scifact bins 10 "${RESULTS_ROOT}/bins_vec0_scifact_k10_bs100_dpb2500"       # best mrr
