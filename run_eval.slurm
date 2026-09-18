@@ -1,5 +1,5 @@
 #!/bin/bash -l
-#SBATCH --job-name=RAG_Eval_Array
+#SBATCH --job-name=RAG_Eval_Selected
 #SBATCH --partition=gpuq
 #SBATCH --qos=gpu
 #SBATCH --gres=gpu:A100.80gb:1
@@ -9,12 +9,21 @@
 #SBATCH --mem=128G
 #SBATCH --time=1-6:30:00
 
-#SBATCH --array=0-99
+#SBATCH --array=0-25
 #SBATCH --output=logs/RAG_Eval_%A_%a.out
 #SBATCH --error=logs/RAG_Eval_%A_%a.err
 
 set -euo pipefail
-cd "$SLURM_SUBMIT_DIR"
+ROOT_DIR="$SLURM_SUBMIT_DIR"
+cd "$ROOT_DIR"
+
+# --- ABSOLUTE ROOTS ---
+# Same layout as run_tree.slurm: results are written under /scratch by the
+# retrieval jobs, datasets live in the projects share.
+RESULTS_ROOT="/scratch/dblackle/results"
+DATASETS_ROOT="/projects/evgenios/dblackle/datasets"
+LOG_DIR="${ROOT_DIR}/logs"
+mkdir -p "$LOG_DIR"
 
 module --quiet purge
 module load hosts/hopper
@@ -40,13 +49,15 @@ export HF_DATASETS_CACHE=/projects/evgenios/dblackle/hf/datasets
 OLLAMA_DIR="/projects/evgenios/dblackle/ollama"
 export PATH="$OLLAMA_DIR/bin:$PATH"
 export LD_LIBRARY_PATH="$OLLAMA_DIR/lib/ollama:${LD_LIBRARY_PATH:-}"
-export OLLAMA_MODELS="/projects/evgenios/dblackle/ollama/models"
+export OLLAMA_MODELS="${OLLAMA_DIR}/models"
 OLLAMA_BIN="$OLLAMA_DIR/bin/ollama"
 MODEL="llama3:70b"
 
-# --- ABLATION ARRAYS ---
-# These mirror the generators in the Pacmann/Bins submission scripts, so every
-# task here maps onto exactly one results directory produced by those runs.
+# --- SELECTED CONFIGURATIONS ---
+# No ablation grid here: the directories below are exactly the ones chosen by
+# plotting/select_configs.py (5 per method/dataset at k=10, except tree/msmarco
+# where only one run survived loading). Regenerate this list if the selection
+# criteria (knee / E>=90% / E>=95% / best mrr / envelope) change.
 DATA_ARR=()
 METHOD_ARR=()
 K_ARR=()
@@ -55,8 +66,6 @@ DIR_ARR=()
 declare -A SEEN
 
 # Register one configuration, skipping directories already covered.
-# (The ablation grids overlap: pacmann k=10/steps=15/neighb=32 is generated
-#  twice, and bins bs=1.0/dpb=50 is generated twice per k.)
 push_config() {
     local d=$1 m=$2 k=$3 dir=$4
     if [[ -n "${SEEN[$dir]:-}" ]]; then
@@ -66,54 +75,43 @@ push_config() {
     DATA_ARR+=("$d"); METHOD_ARR+=("$m"); K_ARR+=("$k"); DIR_ARR+=("$dir")
 }
 
-# 15 unique directories per dataset
-add_pacmann_ablations() {
-    local d=$1
+# bins / msmarco / k10
+push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs5000000_dpb100"    # knee
+push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs100000_dpb1500"    # E>=90%
+push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs100000_dpb2000"    # E>=95%
+push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs100000_dpb2500"    # best mrr
+push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec0_msmarco_k10_bs5000000_dpb2500"   # envelope
 
-    # 1. VARY K (Steps=15, Neighb=32)
-    for k in 10 100; do
-        push_config "$d" "pacmann" "$k" "../results/pacmann_${d}_k${k}_steps15_neighb32"
-    done
+# bins / scifact / k10
+push_config scifact bins 10 "${RESULTS_ROOT}/bins_vec1_scifact_k10_bs1000000_dpb25"     # knee
+push_config scifact bins 10 "${RESULTS_ROOT}/bins_vec1_scifact_k10_bs1000000_dpb250"    # E>=90%
+push_config scifact bins 10 "${RESULTS_ROOT}/bins_vec1_scifact_k10_bs100_dpb1500"       # E>=95%
+push_config scifact bins 10 "${RESULTS_ROOT}/bins_vec0_scifact_k10_bs100_dpb2500"       # best mrr
+push_config scifact bins 10 "${RESULTS_ROOT}/bins_vec1_scifact_k10_bs100_dpb2500"       # envelope
 
-        # 2. VARY STEPS (Neighb=32) -> 12 combinations
-    for k in 10 100; do
-        for steps in 5 10 15 20 25 30; do
-            DATA_ARR+=("$d"); K_ARR+=("$k"); STEPS_ARR+=("$steps"); NEIGHB_ARR+=("32")
-        done
-    done
+# pacmann / msmarco / k10
+push_config msmarco pacmann 10 "${RESULTS_ROOT}/pacmann_msmarco_k10_steps5_neighb48"    # knee
+push_config msmarco pacmann 10 "${RESULTS_ROOT}/pacmann_msmarco_k10_steps15_neighb40"   # E>=90%
+push_config msmarco pacmann 10 "${RESULTS_ROOT}/pacmann_msmarco_k10_steps20_neighb48"   # E>=95%
+push_config msmarco pacmann 10 "${RESULTS_ROOT}/pacmann_msmarco_k10_steps30_neighb48"   # best mrr
+push_config msmarco pacmann 10 "${RESULTS_ROOT}/pacmann_msmarco_k10_steps25_neighb48"   # envelope
 
-    # 3. VARY NEIGHBOUR (Steps=15) -> 12 combinations
-    for k in 10 100; do
-        for neighb in 8 16 24 32 40 48; do
-            DATA_ARR+=("$d"); K_ARR+=("$k"); STEPS_ARR+=("15"); NEIGHB_ARR+=("$neighb")
-        done
-    done
-}
+# pacmann / scifact / k10
+push_config scifact pacmann 10 "${RESULTS_ROOT}/pacmann_scifact_k10_steps5_neighb40"    # knee
+push_config scifact pacmann 10 "${RESULTS_ROOT}/pacmann_scifact_k10_steps5_neighb48"    # E>=95%
+push_config scifact pacmann 10 "${RESULTS_ROOT}/pacmann_scifact_k10_steps10_neighb40"   # best mrr
+push_config scifact pacmann 10 "${RESULTS_ROOT}/pacmann_scifact_k10_steps15_neighb32"   # best recall
+push_config scifact pacmann 10 "${RESULTS_ROOT}/pacmann_scifact_k10_steps10_neighb32"   # envelope
 
-# 28 unique directories per dataset
-add_bins_ablations() {
-    local d=$1
+# tree / msmarco / k10 (only one run loaded; _nopir was skipped by the loader)
+push_config msmarco tree 10 "${RESULTS_ROOT}/tree_msmarco_b64_r128_s16_L50_k10"
 
-    # 1. VARY BIN SIZE (DocsPerBin=50)
-    for k in 10 100; do
-        for bs in 10.0 1.0 0.1 0.01; do
-            push_config "$d" "bins" "$k" "../results/bins_${d}_k${k}_bs${bs}_dpb50"
-        done
-    done
-
-    # 2. VARY DOCS PER BIN (BinSize=1.0)
-    for k in 10 100; do
-        for dpb in 10 25 50 75 100 250 500 1000 1500 2000 2500; do
-            push_config "$d" "bins" "$k" "../results/bins_${d}_k${k}_bs1.0_dpb${dpb}"
-        done
-    done
-}
-
-# Build the setups for all datasets (trec-covid intentionally excluded)
-for d in msmarco scifact; do
-    add_pacmann_ablations "$d"
-    add_bins_ablations "$d"
-done
+# tree / scifact / k10 (all candidates kept)
+push_config scifact tree 10 "${RESULTS_ROOT}/tree_scifact_b16_r128_s2_L200_k10"
+push_config scifact tree 10 "${RESULTS_ROOT}/tree_scifact_b16_r128_s2_L40_k10"
+push_config scifact tree 10 "${RESULTS_ROOT}/tree_scifact_b32_r128_s2_L5_k10"
+push_config scifact tree 10 "${RESULTS_ROOT}/tree_scifact_b8_r128_s2_L10_k10"
+push_config scifact tree 10 "${RESULTS_ROOT}/tree_scifact_b8_r128_s2_L20_k10"
 
 N_CONFIGS=${#DIR_ARR[@]}
 task_id=$SLURM_ARRAY_TASK_ID
@@ -130,11 +128,13 @@ OUT_DIR=${DIR_ARR[$task_id]}
 
 # --- DYNAMIC DATASET PATHS ---
 if [ "$dataset" == "msmarco" ]; then
-    CORPUS_FILE="../datasets/msmarco/collection.tsv"
-    QUERIES_FILE="../datasets/msmarco/queries.dev.small.tsv"
+    DATA_ROOT="${DATASETS_ROOT}/msmarco"
+    CORPUS_FILE="${DATA_ROOT}/collection.tsv"
+    QUERIES_FILE="${DATA_ROOT}/queries.dev.small.tsv"
 elif [ "$dataset" == "scifact" ]; then
-    CORPUS_FILE="../datasets/scifact/corpus.jsonl"
-    QUERIES_FILE="../datasets/scifact/queries.jsonl"
+    DATA_ROOT="${DATASETS_ROOT}/scifact"
+    CORPUS_FILE="${DATA_ROOT}/corpus.jsonl"
+    QUERIES_FILE="${DATA_ROOT}/queries.jsonl"
 else
     echo "Unknown dataset: $dataset"
     exit 1
@@ -155,6 +155,8 @@ echo "Method:        $method"
 echo "Dataset:       $dataset"
 echo "K Value:       $k_val"
 echo "Ollama Port:   $PORT"
+echo "Corpus File:   $CORPUS_FILE"
+echo "Queries File:  $QUERIES_FILE"
 echo "Input TSV:     $SRC_TSV"
 echo "Output Dir:    $OUT_DIR"
 echo "========================================"
@@ -166,6 +168,16 @@ fi
 
 if [[ ! -f "${SRC_TSV}" ]]; then
     echo "ERROR: missing input file: ${SRC_TSV}"
+    exit 1
+fi
+
+if [[ ! -f "${CORPUS_FILE}" ]]; then
+    echo "ERROR: missing corpus file: ${CORPUS_FILE}"
+    exit 1
+fi
+
+if [[ ! -f "${QUERIES_FILE}" ]]; then
+    echo "ERROR: missing queries file: ${QUERIES_FILE}"
     exit 1
 fi
 
@@ -188,7 +200,7 @@ cleanup() {
 trap cleanup EXIT
 
 # ---- Start Ollama ----
-"${OLLAMA_BIN}" serve > "logs/ollama_${task_id}.log" 2>&1 &
+"${OLLAMA_BIN}" serve > "${LOG_DIR}/ollama_${task_id}.log" 2>&1 &
 OLLAMA_PID=$!
 
 if ! wait_for_ollama 60; then
@@ -202,8 +214,9 @@ predictions_json="${OUT_DIR}/predictions_${method}_k${k_val}.json"
 metadata="${OUT_DIR}/metadata.json"
 eval_csv="${OUT_DIR}/ragas_output_${method}_k${k_val}.csv"
 
+SECONDS=0
 echo "Running RAG Generation..."
-python3 rag_msmarco.py \
+python3 "${ROOT_DIR}/rag_msmarco.py" \
   --reranked-file "${SRC_TSV}" \
   --corpus-file "${CORPUS_FILE}" \
   --queries-path "${QUERIES_FILE}" \
@@ -213,7 +226,7 @@ python3 rag_msmarco.py \
 
 echo "Running Ragas Evaluation..."
 # Notice the explicit --output-csv to prevent race conditions
-python3 ragas_eval.py \
+python3 "${ROOT_DIR}/ragas_eval.py" \
   --predictions-file "${predictions_json}" \
   --queries-file "${QUERIES_FILE}" \
   --retrieved-file "${SRC_TSV}" \
@@ -222,7 +235,11 @@ python3 ragas_eval.py \
   --output-csv "${eval_csv}" \
   > "${OUT_DIR}/rag_stage2.out" 2> "${OUT_DIR}/rag_stage2.err"
 
-cp "logs/RAG_Eval_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.out" "${OUT_DIR}/eval_execution.log" || true
-cp "logs/RAG_Eval_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.err" "${OUT_DIR}/eval_error.log" || true
+elapsed_time=$SECONDS
+echo "Time elapsed: $elapsed_time seconds"
+
+# Copy SLURM logs into the output directory for reference
+mv "${LOG_DIR}/RAG_Eval_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.out" "${OUT_DIR}/eval_execution.log" || true
+mv "${LOG_DIR}/RAG_Eval_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}.err" "${OUT_DIR}/eval_error.log" || true
 
 echo "Pipeline complete for Task $task_id"
