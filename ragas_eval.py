@@ -31,35 +31,29 @@ def update_json_file(filename, new_data): # opens and writes to a json
 # CONFIGURATION: OPEN SOURCE / LOCAL SETUP
 # ---------------------------------------------------------
 
-# 1. Initialize the Judge LLM (Ollama)
-# We use Llama 3 because it follows grading instructions much better than older models.
-# Ensure you have run `ollama pull llama3` in your terminal first.
-print("Initializing Local Judge (Llama 3 via Ollama)...")
-ollama_model = ChatOllama(
-    model="llama3:70b",
-    temperature=0, # Deterministic grading
-    base_url="http://localhost:11434" # Default Ollama URL
-)
-# Wrap it so Ragas can use it
-judge_llm = LangchainLLMWrapper(ollama_model)
+def build_judge(port):
+    """Construct the local judge LLM + embeddings and bind them to the metrics."""
+    print(f"Initializing Local Judge (Llama 3 via Ollama) on port {port}...")
+    ollama_model = ChatOllama(
+        model="llama3:70b",
+        temperature=0,          # Deterministic grading
+        num_ctx=8192,
+        base_url=f"http://127.0.0.1:{port}",
+    )
+    judge_llm = LangchainLLMWrapper(ollama_model)
 
-# 2. Initialize Local Embeddings
-# Ragas needs embeddings to calculate 'Answer Relevancy' (cosine similarity).
-# We use a standard, small, fast HuggingFace model.
-print("Initializing Local Embeddings (all-MiniLM-L6-v2)...")
-hf_embeddings = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2",
-    model_kwargs={'device': 'cpu'} # Use 'cuda' if you have a GPU
-)
-judge_embeddings = LangchainEmbeddingsWrapper(hf_embeddings)
+    print("Initializing Local Embeddings (all-MiniLM-L6-v2)...")
+    hf_embeddings = HuggingFaceEmbeddings(
+        model_name="sentence-transformers/all-MiniLM-L6-v2",
+        model_kwargs={'device': 'cpu'}
+    )
+    judge_embeddings = LangchainEmbeddingsWrapper(hf_embeddings)
 
-# 3. Assign Models to Metrics
-# Faithfulness only needs the LLM to check for hallucinations
-faithfulness.llm = judge_llm
+    faithfulness.llm = judge_llm
+    answer_relevancy.llm = judge_llm
+    answer_relevancy.embeddings = judge_embeddings
 
-# Answer Relevancy needs the LLM (to generate questions) AND Embeddings (to measure similarity)
-answer_relevancy.llm = judge_llm
-answer_relevancy.embeddings = judge_embeddings
+    return judge_llm, judge_embeddings
 
 # ---------------------------------------------------------
 # DATA PREPARATION & EXECUTION
@@ -161,12 +155,20 @@ if __name__ == "__main__":
         default="metadata.json",
         help="Path to metadata file.",
     )
+    p.add_argument(
+        "--ollama-port",
+        type=int,
+        default=11434,
+        help="Port of the Ollama server for this task (see PORT in run_eval.slurm).",
+    )
     args =  p.parse_args()
 
 
     if not os.path.exists(args.predictions_file):
         print(f"Error: {args.predictions_file} missing. Run rag_msmarco.py first.")
         exit()
+
+    judge_llm, judge_embeddings = build_judge(args.ollama_port)
 
     # 1. Prepare Data
     ragas_dataset, qids = prepare_dataset(args.predictions_file, args.queries_file, args.retrieved_file,
@@ -177,7 +179,7 @@ if __name__ == "__main__":
     # We pass the specific metrics we configured above
     my_run_config = RunConfig(
         timeout=args.timeout,      # Wait up to 600 seconds (10 mins) per call
-        max_workers=1     # Run ONLY 1 evaluation at a time (Sequential)
+        max_workers=args.max_workers     # Run ONLY 1 evaluation at a time (Sequential)
     )
 
     print("Starting Ragas Evaluation (Local Mode)...")
