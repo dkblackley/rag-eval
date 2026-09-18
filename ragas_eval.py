@@ -99,6 +99,7 @@ def prepare_dataset(pred_file, queries_file, retrieved_file, collection_file):
         "answer": [],
         "contexts": []
     }
+    qids = []
 
     print("Re-constructing evaluation dataset...")
     for qid, answer_text in predictions.items():
@@ -111,8 +112,9 @@ def prepare_dataset(pred_file, queries_file, retrieved_file, collection_file):
         data_points["question"].append(question_text)
         data_points["answer"].append(answer_text)
         data_points["contexts"].append(retrieved_docs)
+        qids.append(qid)
 
-    return Dataset.from_dict(data_points)
+    return Dataset.from_dict(data_points), qids
 
 if __name__ == "__main__":
 
@@ -167,7 +169,8 @@ if __name__ == "__main__":
         exit()
 
     # 1. Prepare Data
-    ragas_dataset = prepare_dataset(args.predictions_file, args.queries_file, args.retrieved_file, args.collection)
+    ragas_dataset, qids = prepare_dataset(args.predictions_file, args.queries_file, args.retrieved_file,
+                                          args.collection)
     print(f"\nDataset ready with {len(ragas_dataset)} samples.")
 
     # 2. Run Evaluation
@@ -188,6 +191,7 @@ if __name__ == "__main__":
 
     # 3. Save Results
     df = results.to_pandas()
+    df.insert(0, "qid", qids)
 
     print("\nEvaluation Results:")
     print(results)
@@ -202,11 +206,25 @@ if __name__ == "__main__":
         "answer_relevancy": sum(r_scores) / len(results["AnswerRelevancy"]) if r_scores else 0
     }
 
-    print(f"\nUpdating {args.metadata} with {final_scores}")
-    update_json_file(args.metadata, final_scores)
-
-
     output_csv = args.output_csv
     df.to_csv(output_csv, index=False)
     print(f"\nDetailed per-query results saved to {output_csv}")
+
+    # Metric column names, taken from the metric objects so they can't drift
+    faith_col = faithfulness.name
+    rel_col = answer_relevancy.name
+
+    df[faith_col].fillna(0).mean()
+    df[rel_col].fillna(0).mean()
+    f_scores = df[faith_col].dropna()
+    r_scores = df[rel_col].dropna()
+
+    final_scores = {
+        "faithfulness": f_scores.mean() if len(f_scores) else 0,
+        "answer_relevancy": r_scores.mean() if len(r_scores) else 0,
+    }
+
+    print(f"\nUpdating {args.metadata} with {final_scores}")
+    update_json_file(args.metadata, final_scores)
+
 
