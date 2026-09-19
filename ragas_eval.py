@@ -18,14 +18,16 @@ except ImportError:
     exit()
 
 
-def update_json_file(filename, new_data): # opens and writes to a json
-    with open(filename, 'r+') as f:
-        data = json.load(f)
-        for key, value in new_data.items():
-            data[str(key)] = str(value)
-        f.seek(0)
+def update_json_file(filename, new_data):
+    try:
+        with open(filename, 'r') as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        data = {}
+    for key, value in new_data.items():
+        data[str(key)] = str(value)
+    with open(filename, 'w') as f:
         json.dump(data, f, indent=4)
-        f.truncate()
 
 # ---------------------------------------------------------
 # CONFIGURATION: OPEN SOURCE / LOCAL SETUP
