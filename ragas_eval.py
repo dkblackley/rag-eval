@@ -1,3 +1,25 @@
+# --- vertexai shim: ragas imports a module langchain-community >=0.4.2 removed ---
+import sys as _sys, types as _types
+try:
+    from langchain_community.chat_models.vertexai import ChatVertexAI as _probe  # noqa: F401
+except Exception:
+    import langchain_community.chat_models as _cm
+    import langchain_community.llms as _lm
+
+    class ChatVertexAI: pass          # isinstance target only, never instantiated
+    class VertexAI: pass
+    class VertexAIModelGarden: pass
+
+    _m = _types.ModuleType("langchain_community.chat_models.vertexai")
+    _m.ChatVertexAI = ChatVertexAI
+    _sys.modules["langchain_community.chat_models.vertexai"] = _m
+    _cm.vertexai = _m; _cm.ChatVertexAI = ChatVertexAI
+
+    _m2 = _types.ModuleType("langchain_community.llms.vertexai")
+    _m2.VertexAI = VertexAI; _m2.VertexAIModelGarden = VertexAIModelGarden
+    _sys.modules["langchain_community.llms.vertexai"] = _m2
+    _lm.vertexai = _m2; _lm.VertexAI = VertexAI; _lm.VertexAIModelGarden = VertexAIModelGarden
+# --- end shim ---
 import argparse
 import os
 import json
