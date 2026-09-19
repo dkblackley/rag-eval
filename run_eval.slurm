@@ -238,7 +238,7 @@ python3 "${ROOT_DIR}/ragas_eval.py" \
   --retrieved-file "${SRC_TSV}" \
   --collection "${CORPUS_FILE}" \
   --metadata "${metadata}" \
-    --output-csv "${eval_csv}" \
+  --output-csv "${eval_csv}" \
   --ollama-port "${PORT}" \
   > "${OUT_DIR}/rag_stage2.out" 2> "${OUT_DIR}/rag_stage2.err"
 

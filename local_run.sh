@@ -103,7 +103,6 @@ for config in "${CONFIGS[@]}"; do
       --output-csv "$eval_csv" \
       --timeout $TIMEOUT \
       --max-workers 2 \
-      --regenerate \
       --ollama-port $PORT \
       --limit $LIMIT \
       || { echo "FAILED"; FAILED+=("$dirname"); continue; }
