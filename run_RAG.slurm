@@ -23,6 +23,9 @@
 #   sbatch --array=6 run_RAG.slurm           # one config
 #   FORCE=1 sbatch --array=6 run_RAG.slurm   # redo a finished one
 
+REGENERATE=1
+FORCE=1
+
 set -euo pipefail
 ROOT_DIR="$SLURM_SUBMIT_DIR"
 cd "$ROOT_DIR"
@@ -221,7 +224,6 @@ for f in "$OUT_DIR:d" "$SRC_TSV:f" "$CORPUS_FILE:f" "$QUERIES_FILE:f"; do
     fi
 done
 
-FORCE=1
 # --- ALREADY DONE? ---
 if [[ -f "$eval_csv" && -z "${FORCE:-}" ]]; then
     echo "Already evaluated (${eval_csv} exists). Set FORCE=1 to re-run."
