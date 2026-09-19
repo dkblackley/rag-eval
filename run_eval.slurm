@@ -6,8 +6,8 @@
 #SBATCH --cpus-per-task=20
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --mem=64G
-#SBATCH --time=0-00:10:00
+#SBATCH --mem=120G
+#SBATCH --time=0-07:30:00
 
 #SBATCH --array=0-31
 #SBATCH --output=logs/RAG_Eval_%A_%a.out
@@ -227,7 +227,7 @@ python3 "${ROOT_DIR}/rag_msmarco.py" \
   --corpus-file "${CORPUS_FILE}" \
   --queries-path "${QUERIES_FILE}" \
   --output "${predictions_json}" \
-  --limit 2 \
+  --limit 100 \
   > "${OUT_DIR}/rag_stage1.out" 2> "${OUT_DIR}/rag_stage1.err"
 
 echo "Running Ragas Evaluation..."
