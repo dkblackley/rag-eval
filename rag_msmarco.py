@@ -4,7 +4,7 @@ import torch
 import csv
 import sys
 from tqdm import tqdm
-from transformers import T5Tokenizer, T5ForConditionalGeneration
+from transformers import AutoTokenizer, AutoModelForCausalLM
 import json
 
 # Increase CSV field limit for large MS MARCO documents
@@ -98,11 +98,16 @@ class Retrieval:
 
 
 class RAGGenerator:
-    def __init__(self, model_name="din0s/t5-base-msmarco-nlgen-ob"):
+    def __init__(self, model_name="Qwen/Qwen2.5-1.5B-Instruct"):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"Loading Generator: {model_name} on {self.device}...")
-        self.tokenizer = T5Tokenizer.from_pretrained(model_name)
-        self.model = T5ForConditionalGeneration.from_pretrained(model_name).to(self.device)
+
+        # Use Auto classes for modern Causal LMs
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+        # Load in half-precision (bfloat16) if on GPU to save memory, otherwise standard float32
+        dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
+        self.model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=dtype).to(self.device)
 
     def generate(self, query, retrieved_docs):
         """
@@ -111,29 +116,40 @@ class RAGGenerator:
         if not retrieved_docs:
             return "No documents retrieved."
 
-        # Concatenate passages. T5 MS MARCO usually trained on concatenation.
-        # Format: "query: <q> context: <p1> <p2> ..."
-        context = " ".join(retrieved_docs)
-        input_text = f"query: {query} context: {context}"
+        # Concatenate passages with clear separation
+        context = "\n\n".join(retrieved_docs)
+
+        # Build a standard instruction prompt format
+        messages = [
+            {"role": "system",
+             "content": "You are a helpful assistant. Answer the query based ONLY on the provided context."},
+            {"role": "user", "content": f"Context:\n{context}\n\nQuery: {query}"}
+        ]
+
+        # Apply the model's native chat template
+        input_text = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
         inputs = self.tokenizer(
             input_text,
             return_tensors="pt",
-            max_length=2048,
+            max_length=8192,  # Safely handle massive contexts from SciFact or MS MARCO
             truncation=True,
-            padding="longest"
         ).to(self.device)
 
         with torch.no_grad():
             outputs = self.model.generate(
                 input_ids=inputs.input_ids,
                 attention_mask=inputs.attention_mask,
-                max_length=64,
-                num_beams=4,
-                early_stopping=True
+                max_new_tokens=64,  # Use max_new_tokens for causal LMs to bound the output size
+                do_sample=False  # Greedy decoding for factual RAG (similar to num_beams=1)
             )
 
-        return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+        # Causal LMs return the prompt + the new generated text in a single tensor.
+        # We slice off the input tokens to get just the answer.
+        input_length = inputs.input_ids.shape[1]
+        generated_tokens = outputs[0][input_length:]
+
+        return self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
 
 
 # ==========================================
@@ -187,7 +203,7 @@ if __name__ == "__main__":
     output_answers = {}
 
     try:
-        with open(queries_path, 'r', encoding='utf-8') as f:
+        for line in tqdm(islice(f, args.limit), total=args.limit, desc="Parsing Queries"):
             # Limit to first N for testing; remove [islice] loop to run all
             from itertools import islice
 
@@ -210,9 +226,9 @@ if __name__ == "__main__":
                 # Store
                 output_answers[qid] = answer
 
-                print(f"\nQID: {qid}")
-                print(f"Query: {query_text}")
-                print(f"Generated Answer: {answer}")
+                # print(f"\nQID: {qid}")
+                # print(f"Query: {query_text}")
+                # print(f"Generated Answer: {answer}")
 
     except FileNotFoundError:
         print(f"Error: {queries_path} not found.")

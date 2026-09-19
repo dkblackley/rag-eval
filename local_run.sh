@@ -9,12 +9,13 @@ DATASETS_ROOT=/home/yelnat/Nextcloud/10TB-STHDD/datasets
 RESULTS_ROOT=$DATASETS_ROOT/results
 ROOT_DIR=$(cd "$(dirname "$0")" && pwd)
 
-JUDGE_MODEL=llama3.1:8b
 PORT=11434
-LIMIT=5
+LIMIT=4
 TIMEOUT=300
 
-export JUDGE_MODEL
+JUDGE_MODEL=llama3.1:8b
+GENERATOR_MODEL=qwen2.5:3b-instruct
+export JUDGE_MODEL GENERATOR_MODEL
 export OLLAMA_HOST=127.0.0.1:$PORT
 export OLLAMA_KEEP_ALIVE=30m
 
@@ -22,7 +23,7 @@ cd "$ROOT_DIR"
 
 # --- environment --- (requires conda)
 source ~/miniconda3/etc/profile.d/conda.sh
-conda create -y -n rag_eval python=3.10
+# conda create -y -n rag_eval python=3.10
 conda activate rag_eval
 pip install -r requirements.txt
 
@@ -33,6 +34,7 @@ for i in $(seq 1 30); do
 done
 curl -sf http://127.0.0.1:$PORT/api/tags > /dev/null || { echo "Ollama not up on $PORT"; exit 1; }
 ollama pull $JUDGE_MODEL
+ollama pull $GENERATOR_MODEL
 
 # --- configs: scifact first, its corpus is 5k docs vs 8.8M for msmarco ---
 CONFIGS=(
@@ -92,25 +94,18 @@ for config in "${CONFIGS[@]}"; do
     metadata=$OUT_DIR/metadata_localtest.json
     eval_csv=$OUT_DIR/ragas_output_local_${method}_k10.csv
 
-    python3 rag_msmarco.py \
+        python3 RAG.py \
       --reranked-file "$OUT_DIR/results.tsv" \
       --corpus-file "$CORPUS_FILE" \
       --queries-path "$QUERIES_FILE" \
-      --output "$predictions_json" \
-      --limit $LIMIT \
-      > "$OUT_DIR/rag_stage1_local.out" 2> "$OUT_DIR/rag_stage1_local.err" \
-      || { echo "stage 1 FAILED"; tail -n 10 "$OUT_DIR/rag_stage1_local.err"; FAILED+=("$dirname"); continue; }
-
-    python3 ragas_eval.py \
       --predictions-file "$predictions_json" \
-      --queries-file "$QUERIES_FILE" \
-      --retrieved-file "$OUT_DIR/results.tsv" \
-      --collection "$CORPUS_FILE" \
       --metadata "$metadata" \
       --output-csv "$eval_csv" \
       --timeout $TIMEOUT \
       --max-workers 4 \
-      --ollama-port $PORT
+      --ollama-port $PORT \
+      --limit $LIMIT \
+      || { echo "FAILED"; FAILED+=("$dirname"); continue; }
 
 done
 
