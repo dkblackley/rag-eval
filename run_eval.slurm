@@ -7,7 +7,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --mem=10G
-#SBATCH --time=0-0:10:00
+#SBATCH --time=0-00:10:00
 
 #SBATCH --array=0-31
 #SBATCH --output=logs/RAG_Eval_%A_%a.out
