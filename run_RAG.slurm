@@ -221,6 +221,7 @@ for f in "$OUT_DIR:d" "$SRC_TSV:f" "$CORPUS_FILE:f" "$QUERIES_FILE:f"; do
     fi
 done
 
+FORCE=1
 # --- ALREADY DONE? ---
 if [[ -f "$eval_csv" && -z "${FORCE:-}" ]]; then
     echo "Already evaluated (${eval_csv} exists). Set FORCE=1 to re-run."

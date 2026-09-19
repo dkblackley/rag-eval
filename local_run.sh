@@ -10,7 +10,7 @@ RESULTS_ROOT=$DATASETS_ROOT/results
 ROOT_DIR=$(cd "$(dirname "$0")" && pwd)
 
 PORT=11434
-LIMIT=30
+LIMIT=15
 TIMEOUT=300
 
 JUDGE_MODEL=llama3.1:8b
