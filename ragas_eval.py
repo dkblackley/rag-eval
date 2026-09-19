@@ -59,7 +59,7 @@ def build_judge(port):
     """Construct the local judge LLM + embeddings and bind them to the metrics."""
     print(f"Initializing Local Judge (Llama 3 via Ollama) on port {port}...")
     ollama_model = ChatOllama(
-        model="llama3:70b",
+        model=os.environ.get("JUDGE_MODEL", "llama3:70b"),
         temperature=0,          # Deterministic grading
         num_ctx=8192,
         base_url=f"http://127.0.0.1:{port}",
@@ -113,9 +113,9 @@ def prepare_dataset(pred_file, queries_file, retrieved_file, collection_file):
     retriever = Retrieval(reranked_file=retrieved_file, corpus_file=collection_file)
 
     data_points = {
-        "question": [],
-        "answer": [],
-        "contexts": []
+        "user_input": [],
+        "response": [],
+        "retrieved_contexts": []
     }
     qids = []
 
@@ -127,9 +127,9 @@ def prepare_dataset(pred_file, queries_file, retrieved_file, collection_file):
         question_text = questions_map[qid]
         retrieved_docs = retriever.retrieve(qid)
 
-        data_points["question"].append(question_text)
-        data_points["answer"].append(answer_text)
-        data_points["contexts"].append(retrieved_docs)
+        data_points["user_input"].append(question_text)
+        data_points["response"].append(answer_text)
+        data_points["retrieved_contexts"].append(retrieved_docs)
         qids.append(qid)
 
     return Dataset.from_dict(data_points), qids
@@ -215,39 +215,27 @@ if __name__ == "__main__":
         run_config=my_run_config
     )
 
-    # 3. Save Results
     df = results.to_pandas()
     df.insert(0, "qid", qids)
 
-    print("\nEvaluation Results:")
-    print(results)
-
-    # Filter out NaNs (failed rows) so they don't break the average
-    f_scores = [x for x in results["Faithfulness"] if not pd.isna(x)]
-    r_scores = [x for x in results["AnswerRelevancy"] if not pd.isna(x)]
-
-    final_scores = {
-        # safely calculate average, default to 0 if list is empty
-        "faithfulness": sum(f_scores) / len(results["Faithfulness"]) if f_scores else 0,
-        "answer_relevancy": sum(r_scores) / len(results["AnswerRelevancy"]) if r_scores else 0
-    }
-
     output_csv = args.output_csv
-    df.to_csv(output_csv, index=False)
+    df.to_csv(output_csv, index=False)  # write before aggregating
     print(f"\nDetailed per-query results saved to {output_csv}")
+    print(f"Result columns: {list(df.columns)}")
 
-    # Metric column names, taken from the metric objects so they can't drift
-    faith_col = faithfulness.name
-    rel_col = answer_relevancy.name
 
-    df[faith_col].fillna(0).mean()
-    df[rel_col].fillna(0).mean()
-    f_scores = df[faith_col].dropna()
-    r_scores = df[rel_col].dropna()
+    def _mean(metric, fallback):
+        col = getattr(metric, "name", None) or fallback
+        if col not in df.columns:
+            print(f"Warning: no column {col!r}; columns = {list(df.columns)}")
+            return 0.0
+        s = pd.to_numeric(df[col], errors="coerce").dropna()
+        return float(s.mean()) if len(s) else 0.0
+
 
     final_scores = {
-        "faithfulness": f_scores.mean() if len(f_scores) else 0,
-        "answer_relevancy": r_scores.mean() if len(r_scores) else 0,
+        "faithfulness": _mean(faithfulness, "faithfulness"),
+        "answer_relevancy": _mean(answer_relevancy, "answer_relevancy"),
     }
 
     print(f"\nUpdating {args.metadata} with {final_scores}")
