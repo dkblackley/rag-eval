@@ -10,7 +10,7 @@ RESULTS_ROOT=$DATASETS_ROOT/results
 ROOT_DIR=$(cd "$(dirname "$0")" && pwd)
 
 PORT=11434
-LIMIT=4
+LIMIT=30
 TIMEOUT=300
 
 JUDGE_MODEL=llama3.1:8b
@@ -102,7 +102,8 @@ for config in "${CONFIGS[@]}"; do
       --metadata "$metadata" \
       --output-csv "$eval_csv" \
       --timeout $TIMEOUT \
-      --max-workers 4 \
+      --max-workers 2 \
+      --regenerate \
       --ollama-port $PORT \
       --limit $LIMIT \
       || { echo "FAILED"; FAILED+=("$dirname"); continue; }
