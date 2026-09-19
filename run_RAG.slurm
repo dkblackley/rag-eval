@@ -1,12 +1,10 @@
 #!/bin/bash -l
 #SBATCH --job-name=RAG_Eval
-#SBATCH --partition=gpuq
-#SBATCH --qos=gpu
-#SBATCH --gres=gpu:A100.80gb:1
+#SBATCH --partition=normal
 #SBATCH --cpus-per-task=20
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --mem=120G
+#SBATCH --mem=150G
 #SBATCH --time=0-07:30:00
 
 #SBATCH --array=0-31
