@@ -21,15 +21,17 @@ export OLLAMA_KEEP_ALIVE=30m
 cd "$ROOT_DIR"
 
 # --- environment --- (requires conda)
+source ~/miniconda3/etc/profile.d/conda.sh
 conda create -y -n rag_eval python=3.10
 conda activate rag_eval
 pip install -r requirements.txt
 
-# --- judge ---
-ollama serve > /tmp/ollama_local.log 2>&1 &
-OLLAMA_PID=$!
-trap 'kill $OLLAMA_PID 2>/dev/null' EXIT
-sleep 5
+systemctl is-active --quiet ollama || sudo systemctl start ollama
+for i in $(seq 1 30); do
+    curl -sf http://127.0.0.1:$PORT/api/tags > /dev/null && break
+    sleep 1
+done
+curl -sf http://127.0.0.1:$PORT/api/tags > /dev/null || { echo "Ollama not up on $PORT"; exit 1; }
 ollama pull $JUDGE_MODEL
 
 # --- configs: scifact first, its corpus is 5k docs vs 8.8M for msmarco ---

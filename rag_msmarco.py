@@ -119,9 +119,9 @@ class RAGGenerator:
         inputs = self.tokenizer(
             input_text,
             return_tensors="pt",
-            max_length=512,
+            max_length=2048,
             truncation=True,
-            padding="max_length"
+            padding="longest"
         ).to(self.device)
 
         with torch.no_grad():
