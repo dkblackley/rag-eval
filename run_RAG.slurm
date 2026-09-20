@@ -7,7 +7,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --mem=120G
-#SBATCH --time=0-07:30:00
+#SBATCH --time=0-05:00:00
 
 #SBATCH --array=0-31
 #SBATCH --output=logs/RAG_%A_%a.out
@@ -120,42 +120,42 @@ push_config() {
     DATA_ARR+=("$d"); METHOD_ARR+=("$m"); K_ARR+=("$k"); DIR_ARR+=("$dir")
 }
 
-# bins / msmarco / k10
-push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs1000000_dpb100"    # knee
-push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs1000000_dpb250"    # knee2
-push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs1000000_dpb1500"   # E>=90%
-push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs1000000_dpb2000"   # E>=95%
-push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs1000000_dpb2500"   # best mrr
-push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs1000000_dpb1000"   # envelope
-
-# bins / scifact / k10
-push_config scifact bins 10 "${RESULTS_ROOT}/bins_vec1_scifact_k10_bs1000000_dpb25"     # knee
-push_config scifact bins 10 "${RESULTS_ROOT}/bins_vec1_scifact_k10_bs1000000_dpb50"     # knee2
-push_config scifact bins 10 "${RESULTS_ROOT}/bins_vec1_scifact_k10_bs1000000_dpb250"    # E>=90%
-push_config scifact bins 10 "${RESULTS_ROOT}/bins_vec1_scifact_k10_bs100_dpb1500"       # E>=95%
-push_config scifact bins 10 "${RESULTS_ROOT}/bins_vec0_scifact_k10_bs100_dpb2500"       # best mrr
-push_config scifact bins 10 "${RESULTS_ROOT}/bins_vec1_scifact_k10_bs100_dpb2500"       # envelope
-
-# pacmann / msmarco / k10
-push_config msmarco pacmann 10 "${RESULTS_ROOT}/pacmann_msmarco_k10_steps5_neighb48"    # knee
-push_config msmarco pacmann 10 "${RESULTS_ROOT}/pacmann_msmarco_k10_steps15_neighb40"   # E>=90%
-push_config msmarco pacmann 10 "${RESULTS_ROOT}/pacmann_msmarco_k10_steps20_neighb48"   # E>=95%
-push_config msmarco pacmann 10 "${RESULTS_ROOT}/pacmann_msmarco_k10_steps30_neighb48"   # best mrr
-push_config msmarco pacmann 10 "${RESULTS_ROOT}/pacmann_msmarco_k10_steps25_neighb48"   # envelope
-
-# pacmann / scifact / k10
-push_config scifact pacmann 10 "${RESULTS_ROOT}/pacmann_scifact_k10_steps5_neighb40"    # knee
-push_config scifact pacmann 10 "${RESULTS_ROOT}/pacmann_scifact_k10_steps5_neighb48"    # E>=95%
-push_config scifact pacmann 10 "${RESULTS_ROOT}/pacmann_scifact_k10_steps10_neighb40"   # best mrr
-push_config scifact pacmann 10 "${RESULTS_ROOT}/pacmann_scifact_k10_steps15_neighb32"   # best recall
-push_config scifact pacmann 10 "${RESULTS_ROOT}/pacmann_scifact_k10_steps10_neighb32"   # envelope
-
-# tree / msmarco / k10
-push_config msmarco tree 10 "${RESULTS_ROOT}/tree_msmarco_b16_r128_s8_L400_k10"
-push_config msmarco tree 10 "${RESULTS_ROOT}/tree_msmarco_b64_r128_s16_L200_k10"
-push_config msmarco tree 10 "${RESULTS_ROOT}/tree_msmarco_b64_r128_s16_L50_k10"
-push_config msmarco tree 10 "${RESULTS_ROOT}/tree_msmarco_b64_r128_s4_L400_k10"
-push_config msmarco tree 10 "${RESULTS_ROOT}/tree_msmarco_b64_r128_s8_L100_k10"
+## bins / msmarco / k10
+#push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs1000000_dpb100"    # knee
+#push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs1000000_dpb250"    # knee2
+#push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs1000000_dpb1500"   # E>=90%
+#push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs1000000_dpb2000"   # E>=95%
+#push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs1000000_dpb2500"   # best mrr
+#push_config msmarco bins 10 "${RESULTS_ROOT}/bins_vec1_msmarco_k10_bs1000000_dpb1000"   # envelope
+#
+## bins / scifact / k10
+#push_config scifact bins 10 "${RESULTS_ROOT}/bins_vec1_scifact_k10_bs1000000_dpb25"     # knee
+#push_config scifact bins 10 "${RESULTS_ROOT}/bins_vec1_scifact_k10_bs1000000_dpb50"     # knee2
+#push_config scifact bins 10 "${RESULTS_ROOT}/bins_vec1_scifact_k10_bs1000000_dpb250"    # E>=90%
+#push_config scifact bins 10 "${RESULTS_ROOT}/bins_vec1_scifact_k10_bs100_dpb1500"       # E>=95%
+#push_config scifact bins 10 "${RESULTS_ROOT}/bins_vec0_scifact_k10_bs100_dpb2500"       # best mrr
+#push_config scifact bins 10 "${RESULTS_ROOT}/bins_vec1_scifact_k10_bs100_dpb2500"       # envelope
+#
+## pacmann / msmarco / k10
+#push_config msmarco pacmann 10 "${RESULTS_ROOT}/pacmann_msmarco_k10_steps5_neighb48"    # knee
+#push_config msmarco pacmann 10 "${RESULTS_ROOT}/pacmann_msmarco_k10_steps15_neighb40"   # E>=90%
+#push_config msmarco pacmann 10 "${RESULTS_ROOT}/pacmann_msmarco_k10_steps20_neighb48"   # E>=95%
+#push_config msmarco pacmann 10 "${RESULTS_ROOT}/pacmann_msmarco_k10_steps30_neighb48"   # best mrr
+#push_config msmarco pacmann 10 "${RESULTS_ROOT}/pacmann_msmarco_k10_steps25_neighb48"   # envelope
+#
+## pacmann / scifact / k10
+#push_config scifact pacmann 10 "${RESULTS_ROOT}/pacmann_scifact_k10_steps5_neighb40"    # knee
+#push_config scifact pacmann 10 "${RESULTS_ROOT}/pacmann_scifact_k10_steps5_neighb48"    # E>=95%
+#push_config scifact pacmann 10 "${RESULTS_ROOT}/pacmann_scifact_k10_steps10_neighb40"   # best mrr
+#push_config scifact pacmann 10 "${RESULTS_ROOT}/pacmann_scifact_k10_steps15_neighb32"   # best recall
+#push_config scifact pacmann 10 "${RESULTS_ROOT}/pacmann_scifact_k10_steps10_neighb32"   # envelope
+#
+## tree / msmarco / k10
+#push_config msmarco tree 10 "${RESULTS_ROOT}/tree_msmarco_b16_r128_s8_L400_k10"
+#push_config msmarco tree 10 "${RESULTS_ROOT}/tree_msmarco_b64_r128_s16_L200_k10"
+#push_config msmarco tree 10 "${RESULTS_ROOT}/tree_msmarco_b64_r128_s16_L50_k10"
+#push_config msmarco tree 10 "${RESULTS_ROOT}/tree_msmarco_b64_r128_s4_L400_k10"
+#push_config msmarco tree 10 "${RESULTS_ROOT}/tree_msmarco_b64_r128_s8_L100_k10"
 
 # tree / scifact / k10
 push_config scifact tree 10 "${RESULTS_ROOT}/tree_scifact_b16_r128_s4_L10_k10"
