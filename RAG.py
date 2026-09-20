@@ -254,7 +254,7 @@ def run_generation(retriever, questions_map, limit, output_path, generator_model
             output_answers = json.load(f)
         print(f"Found {len(output_answers)} existing predictions in {output_path}")
 
-    qids = list(questions_map.keys())
+    qids = [q for q in questions_map if q in retriever.run_results]
     if limit and limit > 0:
         qids = qids[:limit]
 

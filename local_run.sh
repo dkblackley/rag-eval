@@ -38,38 +38,38 @@ ollama pull $GENERATOR_MODEL
 
 # --- configs: scifact first, its corpus is 5k docs vs 8.8M for msmarco ---
 CONFIGS=(
-  "scifact bins    bins_vec1_scifact_k10_bs1000000_dpb25"
-  "scifact bins    bins_vec1_scifact_k10_bs1000000_dpb50"
-  "scifact bins    bins_vec1_scifact_k10_bs1000000_dpb250"
-  "scifact bins    bins_vec1_scifact_k10_bs100_dpb1500"
-  "scifact bins    bins_vec0_scifact_k10_bs100_dpb2500"
-  "scifact bins    bins_vec1_scifact_k10_bs100_dpb2500"
-  "scifact pacmann pacmann_scifact_k10_steps5_neighb40"
-  "scifact pacmann pacmann_scifact_k10_steps5_neighb48"
-  "scifact pacmann pacmann_scifact_k10_steps10_neighb40"
-  "scifact pacmann pacmann_scifact_k10_steps15_neighb32"
-  "scifact pacmann pacmann_scifact_k10_steps10_neighb32"
+#  "scifact bins    bins_vec1_scifact_k10_bs1000000_dpb25"
+#  "scifact bins    bins_vec1_scifact_k10_bs1000000_dpb50"
+#  "scifact bins    bins_vec1_scifact_k10_bs1000000_dpb250"
+#  "scifact bins    bins_vec1_scifact_k10_bs100_dpb1500"
+#  "scifact bins    bins_vec0_scifact_k10_bs100_dpb2500"
+#  "scifact bins    bins_vec1_scifact_k10_bs100_dpb2500"
+#  "scifact pacmann pacmann_scifact_k10_steps5_neighb40"
+#  "scifact pacmann pacmann_scifact_k10_steps5_neighb48"
+#  "scifact pacmann pacmann_scifact_k10_steps10_neighb40"
+#  "scifact pacmann pacmann_scifact_k10_steps15_neighb32"
+#  "scifact pacmann pacmann_scifact_k10_steps10_neighb32"
   "scifact tree    tree_scifact_b16_r128_s4_L10_k10"
   "scifact tree    tree_scifact_b16_r128_s4_L20_k10"
   "scifact tree    tree_scifact_b32_r128_s2_L20_k10"
   "scifact tree    tree_scifact_b32_r128_s2_L80_k10"
   "scifact tree    tree_scifact_b8_r128_s2_L10_k10"
-  "msmarco bins    bins_vec1_msmarco_k10_bs1000000_dpb100"
-  "msmarco bins    bins_vec1_msmarco_k10_bs1000000_dpb250"
-  "msmarco bins    bins_vec1_msmarco_k10_bs1000000_dpb1500"
-  "msmarco bins    bins_vec1_msmarco_k10_bs1000000_dpb2000"
-  "msmarco bins    bins_vec1_msmarco_k10_bs1000000_dpb2500"
-  "msmarco bins    bins_vec1_msmarco_k10_bs1000000_dpb1000"
-  "msmarco pacmann pacmann_msmarco_k10_steps5_neighb48"
-  "msmarco pacmann pacmann_msmarco_k10_steps15_neighb40"
-  "msmarco pacmann pacmann_msmarco_k10_steps20_neighb48"
-  "msmarco pacmann pacmann_msmarco_k10_steps30_neighb48"
-  "msmarco pacmann pacmann_msmarco_k10_steps25_neighb48"
-  "msmarco tree    tree_msmarco_b16_r128_s8_L400_k10"
-  "msmarco tree    tree_msmarco_b64_r128_s16_L200_k10"
-  "msmarco tree    tree_msmarco_b64_r128_s16_L50_k10"
-  "msmarco tree    tree_msmarco_b64_r128_s4_L400_k10"
-  "msmarco tree    tree_msmarco_b64_r128_s8_L100_k10"
+#  "msmarco bins    bins_vec1_msmarco_k10_bs1000000_dpb100"
+#  "msmarco bins    bins_vec1_msmarco_k10_bs1000000_dpb250"
+#  "msmarco bins    bins_vec1_msmarco_k10_bs1000000_dpb1500"
+#  "msmarco bins    bins_vec1_msmarco_k10_bs1000000_dpb2000"
+#  "msmarco bins    bins_vec1_msmarco_k10_bs1000000_dpb2500"
+#  "msmarco bins    bins_vec1_msmarco_k10_bs1000000_dpb1000"
+#  "msmarco pacmann pacmann_msmarco_k10_steps5_neighb48"
+#  "msmarco pacmann pacmann_msmarco_k10_steps15_neighb40"
+#  "msmarco pacmann pacmann_msmarco_k10_steps20_neighb48"
+#  "msmarco pacmann pacmann_msmarco_k10_steps30_neighb48"
+#  "msmarco pacmann pacmann_msmarco_k10_steps25_neighb48"
+#  "msmarco tree    tree_msmarco_b16_r128_s8_L400_k10"
+#  "msmarco tree    tree_msmarco_b64_r128_s16_L200_k10"
+#  "msmarco tree    tree_msmarco_b64_r128_s16_L50_k10"
+#  "msmarco tree    tree_msmarco_b64_r128_s4_L400_k10"
+#  "msmarco tree    tree_msmarco_b64_r128_s8_L100_k10"
 )
 
 FAILED=()
@@ -105,6 +105,7 @@ for config in "${CONFIGS[@]}"; do
       --max-workers 2 \
       --ollama-port $PORT \
       --limit $LIMIT \
+      --regenerate \
       || { echo "FAILED"; FAILED+=("$dirname"); continue; }
 
 done
