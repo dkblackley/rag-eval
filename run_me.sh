@@ -7,6 +7,7 @@
 #   ./run_me.sh scifact nq           # just these
 #   DRY_RUN=1 ./run_me.sh            # print the sbatch commands, submit nothing
 #   SKIP_SETUP=1 ./run_me.sh         # env/models already prepared
+#   (a RAG_setup job still in the queue is reused, not duplicated)
 #   LIMIT=100 RAG_TAG=lim100 ./run_me.sh scifact   # capped test run, separate files
 #   FORCE=1 ./run_me.sh scifact      # redo Ragas for finished configs
 #
@@ -115,8 +116,16 @@ fi
 # --- submit ------------------------------------------------------------------------
 dep=()
 if [[ "$SKIP_SETUP" != 1 ]]; then
-    setup_id=$(submit run_setup.slurm)
-    echo; echo "Setup job: ${setup_id}"
+    # Reuse a setup job that is still queued/running (e.g. from an earlier
+    # ./run_me.sh scifact) instead of starting a second one that would pull
+    # into the same model store concurrently. SETUP_JOB=<id> forces one.
+    setup_id="${SETUP_JOB:-$(squeue -h -u "$USER" -n RAG_setup -o %i 2>/dev/null | head -n 1 || true)}"
+    if [[ -n "$setup_id" ]]; then
+        echo; echo "Setup job: ${setup_id} (already queued/running, reusing it)"
+    else
+        setup_id=$(submit run_setup.slurm)
+        echo; echo "Setup job: ${setup_id}"
+    fi
     dep=(--dependency="afterok:${setup_id}" --kill-on-invalid-dep=yes)
 fi
 
