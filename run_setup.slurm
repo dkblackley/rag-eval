@@ -12,8 +12,10 @@
 # One-off, idempotent preparation for the run_RAG.slurm arrays (run_me.sh
 # submits it first and makes every array depend on it):
 #   1. conda env exists and has the requirements (never wiped);
-#   2. Ollama has the judge and generator models;
-#   3. the HF embedding model used by answer_relevancy is cached, so the
+#   2. Ollama has the generator (and the fallback llama3:70b judge);
+#   3. a separate conda env has vLLM, and the AWQ Llama-3-70B-Instruct judge
+#      weights (~40 GB, pinned revision) are downloaded;
+#   4. the HF embedding model used by answer_relevancy is cached, so the
 #      GPU tasks can run with HF_HUB_OFFLINE=1.
 # When everything is already there this takes a minute or two.
 
@@ -59,7 +61,8 @@ export LD_LIBRARY_PATH="${OLLAMA_DIR}/lib/ollama:${LD_LIBRARY_PATH:-}"
 trap stop_ollama EXIT
 start_ollama "${ROOT_DIR}/logs/setup_ollama_${SLURM_JOB_ID}.log"
 
-for model in "$JUDGE_MODEL" "$GENERATOR_MODEL"; do
+OLLAMA_WANTED=("$GENERATOR_MODEL" "$OLLAMA_JUDGE_MODEL")
+for model in "${OLLAMA_WANTED[@]}"; do
     if model_present "$model"; then
         echo "Model ${model} already present."
     else
@@ -69,20 +72,48 @@ for model in "$JUDGE_MODEL" "$GENERATOR_MODEL"; do
     fi
 done
 "$OLLAMA_BIN" list
-for model in "$JUDGE_MODEL" "$GENERATOR_MODEL"; do
+for model in "${OLLAMA_WANTED[@]}"; do
     model_present "$model" || { echo "ERROR: ${model} missing after pull"; exit 1; }
 done
 stop_ollama
 trap - EXIT
 
-# --- 3. HF embedding model --------------------------------------------------------
+# --- 3. vLLM env + judge weights -----------------------------------------------------
+export PIP_CACHE_DIR="${CACHE_ROOT}/pip"
+mkdir -p "$PIP_CACHE_DIR"
+if [[ -x "${VLLM_ENV}/bin/python" ]] && "${VLLM_ENV}/bin/pip" show vllm 2>/dev/null | grep -qx "Version: ${VLLM_VERSION}"; then
+    echo "vLLM ${VLLM_VERSION} env OK."
+else
+    if [[ ! -x "${VLLM_ENV}/bin/python" ]]; then
+        echo "Creating vLLM env at ${VLLM_ENV}..."
+        conda create -y -p "$VLLM_ENV" python=3.12 pip
+    fi
+    echo "Installing vllm==${VLLM_VERSION} into ${VLLM_ENV}..."
+    "${VLLM_ENV}/bin/pip" install "vllm==${VLLM_VERSION}"
+fi
+
+if [[ -f "${JUDGE_HF_PATH}/.complete_${JUDGE_HF_REVISION}" ]]; then
+    echo "Judge weights present at ${JUDGE_HF_PATH}."
+else
+    echo "Downloading ${JUDGE_HF_REPO}@${JUDGE_HF_REVISION} to ${JUDGE_HF_PATH} (~40 GB)..."
+    mkdir -p "$JUDGE_HF_PATH"
+    env -u LD_PRELOAD LD_LIBRARY_PATH= "${VLLM_ENV}/bin/python" - <<PY
+from huggingface_hub import snapshot_download
+snapshot_download(repo_id="${JUDGE_HF_REPO}", revision="${JUDGE_HF_REVISION}", local_dir="${JUDGE_HF_PATH}")
+PY
+    n=$(ls "${JUDGE_HF_PATH}"/*.safetensors 2>/dev/null | wc -l)
+    [[ -f "${JUDGE_HF_PATH}/config.json" && "$n" -ge 9 ]] || { echo "ERROR: judge download incomplete (${n} shards)"; exit 1; }
+    touch "${JUDGE_HF_PATH}/.complete_${JUDGE_HF_REVISION}"
+fi
+
+# --- 4. HF embedding model --------------------------------------------------------
 python - <<PY
 from sentence_transformers import SentenceTransformer
 m = SentenceTransformer("${EMBED_MODEL}", device="cpu")
 print("Embedding model OK:", m.encode(["hello"]).shape)
 PY
 
-# --- 4. sanity: dataset files -------------------------------------------------------
+# --- 5. sanity: dataset files -------------------------------------------------------
 missing=0
 for ds in $(grep -v '^#' "${ROOT_DIR}/configs.tsv" | cut -f1 | sort -u); do
     dataset_paths "$ds"

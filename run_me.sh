@@ -1,50 +1,53 @@
 #!/bin/bash
-# Submit the whole RAG evaluation: one setup job, then one GPU job array per
-# dataset (each depends on the setup job). Only submits and checks files, so
-# it is fine to run on the login node.
+# Submit the RAG evaluation: one setup job, then one GPU job array per dataset
+# with ONE TASK PER METHOD (each task runs all of that method's configs), all
+# depending on the setup job. Only submits and checks files: login-node safe.
 #
-#   ./run_me.sh                      # every dataset in configs.tsv
-#   ./run_me.sh scifact nq           # just these
-#   DRY_RUN=1 ./run_me.sh            # print the sbatch commands, submit nothing
-#   SKIP_SETUP=1 ./run_me.sh         # env/models already prepared
-#   (a RAG_setup job still in the queue is reused, not duplicated)
-#   LIMIT=100 RAG_TAG=lim100 ./run_me.sh scifact   # capped test run, separate files
-#   FORCE=1 ./run_me.sh scifact      # redo Ragas for finished configs
+#   ./run_me.sh                       # every dataset, 1000-query sample (default)
+#   ./run_me.sh scifact nq            # just these datasets
+#   ALL_QUERIES=1 ./run_me.sh         # every judged query (resumes from the sample)
+#   DRY_RUN=1 ./run_me.sh             # print the sbatch commands, submit nothing
+#   SKIP_SETUP=1 ./run_me.sh          # env/models already prepared
+#   JUDGE_BACKEND=ollama ./run_me.sh  # fallback: llama3:70b on Ollama (old, slower)
+#   FORCE=1 ./run_me.sh scifact       # redo Ragas for finished configs
 #
-# Re-running is safe: finished configs (<eval csv>.done) and configs without a
-# ranking file are skipped, and a dataset that still has RAG_<dataset> jobs in
-# the queue is not submitted again (two jobs appending to one CSV would
-# corrupt it). Long datasets resubmit themselves until done, see run_RAG.slurm.
+# Sample vs all: the 1000 queries are a fixed seeded random sample of the judged
+# queries, identical for every config of a dataset. The all-queries run uses
+# the same prediction/CSV files and only evaluates the queries that are still
+# missing, so nothing is computed twice. Results go to metadata.json as
+# faithfulness_q1000 / answer_relevancy_q1000 (sample) and faithfulness /
+# answer_relevancy (all). scifact has only 300 test queries, so its "sample"
+# already is the full set and ALL_QUERIES=1 skips it.
+#
+# Re-running is safe: finished configs are skipped, and a dataset that still
+# has RAG_<dataset> jobs queued is not submitted again (two jobs writing the
+# same CSV would corrupt it). A setup job still in the queue is reused.
 
 set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 source "${ROOT_DIR}/common.sh"
 
-# --- per-dataset wall time of ONE job (it resubmits itself until done) ---------
-# Past runs: ~90 s of llama3:70b judging per query with 1 worker. With
-# MAX_WORKERS=4 parallel slots expect roughly 3x faster, so ~30 s/query:
-#   scifact 300 q -> ~2.5 h        nq 3.5k q   -> ~1.2 days
-#   msmarco 7k q  -> ~2.4 days     fever 6.7k q -> ~2.3 days
-#   msmarco-v2* 3.9k q -> ~1.4 days (+ one 46 GB corpus scan for the full v2)
-# Shorter slots start sooner; the price is a few minutes of model loading per link.
-declare -A JOB_TIME_FOR=(
-    [scifact]=0-12:00:00
-    [nq]=1-00:00:00
-    [msmarco]=1-00:00:00
-    [fever]=1-00:00:00
-    [msmarco-v2-25m]=1-00:00:00
-    [msmarco-v2-50m]=1-00:00:00
-    [msmarco-v2]=1-00:00:00
-)
+ALL_QUERIES="${ALL_QUERIES:-0}"
+if [[ "$ALL_QUERIES" == 1 ]]; then LIMIT=0; else LIMIT="${LIMIT:-1000}"; fi
+export LIMIT
 
-LIMIT="${LIMIT:-0}"                  # 0 = all judged queries
-MAX_WORKERS="${MAX_WORKERS:-4}"
-MAX_CONCURRENT="${MAX_CONCURRENT:-}" # e.g. 8 -> at most 8 GPUs per dataset array
+# --- wall time of ONE task (one method = 2-5 configs, run one after another) ----------
+# Rough guesses for the vLLM judge (~5-15 s/query; check the "[eval] ... s" lines in
+# the first scifact logs and adjust): a 1000-query config ~1.5-4 h, so a 5-config
+# method ~8-20 h. Time-outs lose nothing: the task resumes on resubmission.
+if [[ "$ALL_QUERIES" == 1 ]]; then
+    DEFAULT_TIME=5-00:00:00            # gpuq maximum
+    declare -A JOB_TIME_FOR=()
+else
+    DEFAULT_TIME=2-00:00:00
+    declare -A JOB_TIME_FOR=( [scifact]=0-12:00:00 )
+fi
+
 FORCE="${FORCE:-0}"
 REGENERATE="${REGENERATE:-0}"
 AUTO_RESUBMIT="${AUTO_RESUBMIT:-1}"
-MAX_RESUBMITS="${MAX_RESUBMITS:-20}"
+MAX_RESUBMITS="${MAX_RESUBMITS:-10}"
 RAG_TAG="${RAG_TAG:-}"
 DRY_RUN="${DRY_RUN:-0}"
 SKIP_SETUP="${SKIP_SETUP:-0}"
@@ -55,7 +58,7 @@ else
     mapfile -t DATASETS < <(grep -v '^#' configs.tsv | cut -f1 | awk '!seen[$0]++')
 fi
 
-submit() {   # prints the job id (or a fake one when DRY_RUN=1)
+submit() {   # prints the job id (or a fake one when DRY_RUN=1); fails like sbatch
     if [[ "$DRY_RUN" == 1 ]]; then
         echo "  [dry-run] sbatch $*" >&2
         echo "DRY$RANDOM"
@@ -65,84 +68,92 @@ submit() {   # prints the job id (or a fake one when DRY_RUN=1)
 }
 
 mkdir -p logs
+echo "Mode: $( (( LIMIT > 0 )) && echo "${LIMIT}-query sample" || echo "ALL queries")   judge: ${JUDGE_LABEL}"
 
-# --- preflight -------------------------------------------------------------------
+# --- preflight ---------------------------------------------------------------------------
 declare -A ARRAY_FOR
-n_submit=0
+n_jobs=0
 for ds in "${DATASETS[@]}"; do
-    if [[ -z "${JOB_TIME_FOR[$ds]:-}" ]]; then
-        echo "ERROR: no JOB_TIME_FOR entry for dataset '$ds'"; exit 1
-    fi
     dataset_paths "$ds"
     for f in "$CORPUS_FILE" "$QUERIES_FILE" "$QRELS_FILE"; do
         [[ -s "$f" ]] || { echo "ERROR: [$ds] missing $f"; exit 1; }
     done
 
-    echo "=== $ds ==="
-    if [[ "$DRY_RUN" != 1 ]] && [[ -n "$(squeue -h -u "$USER" -n "RAG_${ds}" -o %i 2>/dev/null)" ]]; then
+    echo; echo "=== $ds ==="
+    if [[ -n "$(squeue -h -u "$USER" -n "RAG_${ds}" -o %i 2>/dev/null)" ]]; then
         echo "  RAG_${ds} jobs are still queued/running; skipping (scancel them first to resubmit)."
         continue
     fi
 
-    idx=(); i=0
-    while IFS=$'\t' read -r method dir; do
-        output_names "$dir" "$method" 10
-        name=$(basename "$dir")
-        if ! ranking_file "$dir" > /dev/null; then
-            echo "  [$i] SKIP (no results_reRank.json)  $name"
-        elif [[ -f "${eval_csv}.done" && "$FORCE" != 1 && "$REGENERATE" != 1 ]]; then
-            echo "  [$i] done ($(cat "${eval_csv}.done") queries)  $name"
-        else
-            progress=""
-            [[ -f "$eval_csv" ]] && progress=" (resuming partial CSV)"
-            echo "  [$i] submit  $name${progress}"
-            idx+=("$i")
-        fi
-        i=$((i + 1))
-    done < <(configs_for "$ds")
+    mapfile -t methods < <(methods_for "$ds")
+    idx=()
+    for i in "${!methods[@]}"; do
+        m=${methods[$i]}
+        n_total=0; n_done=0; n_skip=0
+        while IFS=$'\t' read -r method dir; do
+            [[ "$method" == "$m" ]] || continue
+            n_total=$((n_total + 1))
+            output_names "$dir" "$method" 10
+            if ! ranking_file "$dir" > /dev/null; then
+                n_skip=$((n_skip + 1))
+            elif config_done && [[ "$FORCE" != 1 && "$REGENERATE" != 1 ]]; then
+                n_done=$((n_done + 1))
+            fi
+        done < <(configs_for "$ds")
+        todo=$((n_total - n_done - n_skip))
+        printf "  [%d] %-8s %d configs: %d done, %d no ranking file, %d to run\n" \
+            "$i" "$m" "$n_total" "$n_done" "$n_skip" "$todo"
+        (( todo > 0 )) && idx+=("$i")
+    done
 
     if (( ${#idx[@]} == 0 )); then
         echo "  nothing to do"
         continue
     fi
     ARRAY_FOR[$ds]=$(IFS=,; echo "${idx[*]}")
-    n_submit=$((n_submit + ${#idx[@]}))
+    n_jobs=$((n_jobs + ${#idx[@]}))
 done
 
-if (( n_submit == 0 )); then
+if (( n_jobs == 0 )); then
     echo; echo "Nothing to submit."; exit 0
 fi
+echo; echo "${n_jobs} GPU jobs to submit (the gpu QOS allows ~40 queued per user)."
 
-# --- submit ------------------------------------------------------------------------
+# --- submit --------------------------------------------------------------------------------
 dep=()
 if [[ "$SKIP_SETUP" != 1 ]]; then
-    # Reuse a setup job that is still queued/running (e.g. from an earlier
-    # ./run_me.sh scifact) instead of starting a second one that would pull
-    # into the same model store concurrently. SETUP_JOB=<id> forces one.
+    # Reuse a setup job that is still queued/running instead of starting a
+    # second one that would write the same envs/models concurrently.
     setup_id="${SETUP_JOB:-$(squeue -h -u "$USER" -n RAG_setup -o %i 2>/dev/null | head -n 1 || true)}"
     if [[ -n "$setup_id" ]]; then
-        echo; echo "Setup job: ${setup_id} (already queued/running, reusing it)"
+        echo "Setup job: ${setup_id} (already queued/running, reusing it)"
     else
         setup_id=$(submit run_setup.slurm)
-        echo; echo "Setup job: ${setup_id}"
+        echo "Setup job: ${setup_id}"
     fi
     dep=(--dependency="afterok:${setup_id}" --kill-on-invalid-dep=yes)
 fi
 
-echo
+refused=()
 for ds in "${DATASETS[@]}"; do
     [[ -n "${ARRAY_FOR[$ds]:-}" ]] || continue
-    array="${ARRAY_FOR[$ds]}${MAX_CONCURRENT:+%${MAX_CONCURRENT}}"
-    t="${JOB_TIME_FOR[$ds]}"
-    jid=$(submit "${dep[@]}" \
-        --job-name="RAG_${ds}" \
-        --array="$array" \
-        --time="$t" \
-        --export="ALL,DATASET=${ds},LIMIT=${LIMIT},MAX_WORKERS=${MAX_WORKERS},JOB_TIME=${t},AUTO_RESUBMIT=${AUTO_RESUBMIT},MAX_RESUBMITS=${MAX_RESUBMITS},RESUBMIT_COUNT=0,FORCE=${FORCE},REGENERATE=${REGENERATE},RAG_TAG=${RAG_TAG}" \
-        run_RAG.slurm)
-    echo "RAG_${ds}: job ${jid}  array=${array}  time=${t}"
+    t="${JOB_TIME_FOR[$ds]:-$DEFAULT_TIME}"
+    if jid=$(submit "${dep[@]}" \
+            --job-name="RAG_${ds}" \
+            --array="${ARRAY_FOR[$ds]}" \
+            --time="$t" \
+            --export="ALL,DATASET=${ds},LIMIT=${LIMIT},JUDGE_BACKEND=${JUDGE_BACKEND},JOB_TIME=${t},AUTO_RESUBMIT=${AUTO_RESUBMIT},MAX_RESUBMITS=${MAX_RESUBMITS},RESUBMIT_COUNT=0,FORCE=${FORCE},REGENERATE=${REGENERATE},RAG_TAG=${RAG_TAG}" \
+            run_RAG.slurm); then
+        echo "RAG_${ds}: job ${jid}  methods=${ARRAY_FOR[$ds]}  time=${t}"
+    else
+        refused+=("$ds")
+    fi
 done
 
+if (( ${#refused[@]} > 0 )); then
+    echo; echo "Refused (probably the submit limit): ${refused[*]}"
+    echo "Re-run ./run_me.sh ${refused[*]} once some jobs have finished."
+fi
 echo
-echo "Logs: ${ROOT_DIR}/logs/RAG_<dataset>_<job>_<idx>.{out,err}; per-config progress in <run dir>/rag.out"
-echo "Check progress: ./rag_status.sh"
+echo "Logs: logs/RAG_<dataset>_<job>_<method idx>.out; per-config detail in <run dir>/rag.out|err"
+echo "Progress: ./rag_status.sh"

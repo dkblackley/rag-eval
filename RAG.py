@@ -43,6 +43,7 @@ import argparse
 import csv
 import json
 import os
+import random
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -301,23 +302,42 @@ class RAGGenerator:
 # ==========================================
 # Judge
 # ==========================================
-def build_judge(port, num_ctx):
-    """Construct the local judge LLM + embeddings and bind them to the metrics."""
-    from langchain_ollama import ChatOllama
+def build_judge(args):
+    """Construct the local judge LLM + embeddings and bind them to the metrics.
+
+    backend "ollama": judge served by the task's Ollama (llama3:70b gguf).
+    backend "openai": any OpenAI-compatible server, here vLLM serving the AWQ
+    Llama-3-70B-Instruct. Ragas sends answer_relevancy's n=strictness samples
+    as one n=3 request there (Ollama gets 3 separate requests); both sample
+    at ragas' temperature 0.3, so the metric is the same.
+    """
     from langchain_huggingface import HuggingFaceEmbeddings
     from ragas.llms import LangchainLLMWrapper
     from ragas.embeddings import LangchainEmbeddingsWrapper
     from ragas.metrics import faithfulness, answer_relevancy
 
-    judge_model = os.environ.get("JUDGE_MODEL", "llama3:70b")
-    print(f"Initializing Local Judge ({judge_model} via Ollama) on port {port}...")
-    ollama_model = ChatOllama(
-        model=judge_model,
-        temperature=0,          # Deterministic grading
-        num_ctx=num_ctx,
-        base_url=f"http://127.0.0.1:{port}",
-    )
-    judge_llm = LangchainLLMWrapper(ollama_model)
+    judge_model = args.judge_model or os.environ.get("JUDGE_MODEL", "llama3:70b")
+    if args.judge_backend == "openai":
+        from langchain_openai import ChatOpenAI
+        print(f"Initializing Judge ({judge_model} via OpenAI-compatible server {args.judge_base_url})...")
+        chat = ChatOpenAI(
+            model=judge_model,
+            base_url=args.judge_base_url,
+            api_key="EMPTY",
+            temperature=0,
+            timeout=args.timeout,
+            max_retries=2,
+        )
+    else:
+        from langchain_ollama import ChatOllama
+        print(f"Initializing Local Judge ({judge_model} via Ollama) on port {args.ollama_port}...")
+        chat = ChatOllama(
+            model=judge_model,
+            temperature=0,          # Deterministic grading
+            num_ctx=args.judge_num_ctx,
+            base_url=f"http://127.0.0.1:{args.ollama_port}",
+        )
+    judge_llm = LangchainLLMWrapper(chat)
 
     print("Initializing Local Embeddings (all-MiniLM-L6-v2)...")
     hf_embeddings = HuggingFaceEmbeddings(
@@ -442,7 +462,7 @@ def run_evaluation(qids, predictions, questions_map, retriever, args, deadline, 
     if not todo:
         return True
 
-    judge_llm, judge_embeddings, metrics = build_judge(args.ollama_port, args.judge_num_ctx)
+    judge_llm, judge_embeddings, metrics = build_judge(args)
     run_config = RunConfig(timeout=args.timeout, max_workers=args.max_workers)
 
     chunk_times = []
@@ -479,7 +499,7 @@ def run_evaluation(qids, predictions, questions_map, retriever, args, deadline, 
     return all(q in evaluated_qids(args.output_csv) for q in qids)
 
 
-def summarise(args, qids):
+def summarise(args, qids, suffix=""):
     df = pd.read_csv(args.output_csv, dtype={"qid": str})
     df = df.drop_duplicates("qid", keep="last")
     df = df[df["qid"].isin(set(qids))]
@@ -488,14 +508,14 @@ def summarise(args, qids):
     for col in ("faithfulness", "answer_relevancy"):
         if col not in df.columns:
             print(f"Warning: no column {col!r}; columns = {list(df.columns)}")
-            summary[col] = 0.0
+            summary[f"{col}{suffix}"] = 0.0
             continue
         s = pd.to_numeric(df[col], errors="coerce")
-        summary[col] = float(s.mean()) if s.notna().any() else 0.0
-        summary[f"{col}_nan"] = int(s.isna().sum())
-    summary["rag_num_queries"] = int(len(df))
+        summary[f"{col}{suffix}"] = float(s.mean()) if s.notna().any() else 0.0
+        summary[f"{col}_nan{suffix}"] = int(s.isna().sum())
+    summary[f"rag_num_queries{suffix}"] = int(len(df))
     summary["rag_generator"] = os.environ.get("GENERATOR_MODEL", args.generator_model or "qwen2.5:7b-instruct")
-    summary["rag_judge"] = os.environ.get("JUDGE_MODEL", "llama3:70b")
+    summary["rag_judge"] = os.environ.get("JUDGE_LABEL", args.judge_model or os.environ.get("JUDGE_MODEL", "llama3:70b"))
     return summary
 
 
@@ -522,7 +542,10 @@ if __name__ == "__main__":
     p.add_argument("--doc-cache", default=None,
                    help="jsonl cache of the documents this run needs (skips the corpus scan on restart).")
     p.add_argument("--limit", type=int, default=0,
-                   help="Max number of queries to process. 0 or negative = all.")
+                   help="Evaluate a seeded random sample of this many judged queries "
+                        "(the same sample for every config of a dataset). 0 = all.")
+    p.add_argument("--sample-seed", type=int, default=0,
+                   help="Seed of the --limit sample.")
     p.add_argument("--top-k", type=int, default=10,
                    help="Documents passed to the generator per query.")
     p.add_argument("--max-doc-chars", type=int, default=2000,
@@ -536,6 +559,18 @@ if __name__ == "__main__":
                    help="Judge context window in tokens.")
     p.add_argument("--timeout", type=int, default=600,
                    help="Timeout in seconds per LLM/embedding call during evaluation.")
+    p.add_argument("--judge-backend", choices=["ollama", "openai"], default="ollama",
+                   help="ollama: judge on the Ollama server; openai: OpenAI-compatible server (vLLM).")
+    p.add_argument("--judge-base-url", default="http://127.0.0.1:8000/v1",
+                   help="Base URL of the OpenAI-compatible judge server.")
+    p.add_argument("--judge-model", default=None,
+                   help="Judge model name (served model name for vLLM). Defaults to $JUDGE_MODEL.")
+    p.add_argument("--done-marker", default=None,
+                   help="File written when every selected query is evaluated (default <output-csv>.done).")
+    p.add_argument("--all-done-marker", default=None,
+                   help="Also written when the selected queries are ALL judged queries.")
+    p.add_argument("--metadata-suffix", default="",
+                   help="Suffix for the metadata keys, e.g. _q1000 for a sampled run.")
     p.add_argument("--max-workers", type=int, default=1,
                    help="Concurrent Ragas workers (match OLLAMA_NUM_PARALLEL).")
     p.add_argument("--gen-workers", type=int, default=None,
@@ -559,10 +594,10 @@ if __name__ == "__main__":
     args = p.parse_args()
 
     started = time.time()
-    done_marker = f"{args.output_csv}.done"
+    done_marker = args.done_marker or f"{args.output_csv}.done"
 
     if args.regenerate or args.restart_eval:
-        doomed = [args.output_csv, done_marker]
+        doomed = [args.output_csv, done_marker] + ([args.all_done_marker] if args.all_done_marker else [])
         if args.regenerate:
             doomed.append(args.predictions_file)
         for path in doomed:
@@ -573,13 +608,23 @@ if __name__ == "__main__":
     # 1. Which queries: in the queries file, in the run, (in qrels), first --limit
     questions_map = load_queries(args.queries_path)
     run_results = load_run(args.reranked_file)
-    qids = [q for q in questions_map if q in run_results]
+    # The sample is drawn from the judged queries, independent of the run, so
+    # every config of a dataset gets the same queries (paired comparison), and
+    # a later all-queries run is a superset that resumes from these results.
+    candidates = list(questions_map)
     if args.qrels:
         judged = load_qrels_qids(args.qrels)
-        qids = [q for q in qids if q in judged]
-    if args.limit and args.limit > 0:
-        qids = qids[:args.limit]
-    print(f"{len(qids)} queries selected ({len(run_results)} in run, {len(questions_map)} in queries file).")
+        candidates = [q for q in candidates if q in judged]
+    covers_all = not (args.limit and 0 < args.limit < len(candidates))
+    if not covers_all:
+        pool = sorted(candidates)
+        random.Random(args.sample_seed).shuffle(pool)
+        candidates = pool[:args.limit]
+    qids = [q for q in candidates if q in run_results]
+    missing = len(candidates) - len(qids)
+    print(f"{len(qids)} queries selected ({'all judged' if covers_all else f'seed-{args.sample_seed} sample of {args.limit}'}"
+          f"; {missing} not in run; {len(run_results)} in run, {len(questions_map)} in queries file).")
+    args.covers_all = covers_all
     if not qids:
         print("ERROR: no queries selected; check that the query ids match the run/qrels.")
         sys.exit(1)
@@ -626,9 +671,14 @@ if __name__ == "__main__":
         sys.exit(EXIT_INCOMPLETE)
 
     # 4. Aggregate over the full CSV
-    final_scores = summarise(args, qids)
+    final_scores = summarise(args, qids, args.metadata_suffix)
+    if args.covers_all and args.metadata_suffix:
+        final_scores.update(summarise(args, qids, ""))   # the sample was every judged query
     print(f"\nUpdating {args.metadata} with {final_scores}")
     update_json_file(args.metadata, final_scores)
-    with open(done_marker, 'w') as f:
-        f.write(f"{final_scores['rag_num_queries']}\n")
+    n_done = final_scores[f"rag_num_queries{args.metadata_suffix}"]
+    markers = [done_marker] + ([args.all_done_marker] if args.covers_all and args.all_done_marker else [])
+    for marker in markers:
+        with open(marker, 'w') as f:
+            f.write(f"{n_done}\n")
     print(f"Total time: {time.time() - started:.0f}s")
