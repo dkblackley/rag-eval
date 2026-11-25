@@ -327,6 +327,10 @@ def build_judge(args):
             temperature=0,
             timeout=args.timeout,
             max_retries=2,
+            # Some judge requests ran to the full 8192-token context; a few such
+            # runaways fill vLLM's KV cache, the rest queue past the timeout and
+            # score NaN. Ragas' JSON answers are far shorter than this cap.
+            max_tokens=args.judge_max_tokens,
         )
     else:
         from langchain_ollama import ChatOllama
@@ -557,6 +561,8 @@ if __name__ == "__main__":
                    help="Generator context window in tokens.")
     p.add_argument("--judge-num-ctx", type=int, default=8192,
                    help="Judge context window in tokens.")
+    p.add_argument("--judge-max-tokens", type=int, default=1024,
+                   help="Max tokens per judge reply (openai/vLLM backend).")
     p.add_argument("--timeout", type=int, default=600,
                    help="Timeout in seconds per LLM/embedding call during evaluation.")
     p.add_argument("--judge-backend", choices=["ollama", "openai"], default="ollama",
