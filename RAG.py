@@ -678,7 +678,16 @@ if __name__ == "__main__":
         print("--skip-eval set; stopping after generation.")
         sys.exit(0)
 
-    # 3. Evaluate in checkpointed chunks
+    # 3. Evaluate in checkpointed chunks. A query whose ranking list is empty
+    # (the method retrieved nothing) has no contexts for Ragas, so it never gets
+    # a CSV row; leave it out of the completeness check, or the config would
+    # look unfinished forever (exit 75 -> resubmit -> "no progress").
+    no_docs = [q for q in qids if not retriever.retrieve(q)]
+    if no_docs:
+        print(f"{len(no_docs)} queries have no retrieved documents and are not evaluated: "
+              f"{', '.join(no_docs[:10])}{' ...' if len(no_docs) > 10 else ''}")
+        skipped = set(no_docs)
+        qids = [q for q in qids if q not in skipped]
     complete = run_evaluation(qids, predictions, questions_map, retriever, args,
                               args.deadline, args.deadline_margin)
     print(f"Evaluation stage stopped at {time.time() - started:.0f}s (complete={complete})")
@@ -688,8 +697,10 @@ if __name__ == "__main__":
 
     # 4. Aggregate over the full CSV
     final_scores = summarise(args, qids, args.metadata_suffix)
+    final_scores[f"rag_no_docs{args.metadata_suffix}"] = len(no_docs)
     if args.covers_all and args.metadata_suffix:
         final_scores.update(summarise(args, qids, ""))   # the sample was every judged query
+        final_scores["rag_no_docs"] = len(no_docs)
     print(f"\nUpdating {args.metadata} with {final_scores}")
     update_json_file(args.metadata, final_scores)
     n_done = final_scores[f"rag_num_queries{args.metadata_suffix}"]

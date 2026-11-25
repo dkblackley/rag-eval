@@ -33,15 +33,19 @@ if [[ "$ALL_QUERIES" == 1 ]]; then LIMIT=0; else LIMIT="${LIMIT:-1000}"; fi
 export LIMIT
 
 # --- wall time of ONE task (one method = 2-5 configs, run one after another) ----------
-# Rough guesses for the vLLM judge (~5-15 s/query; check the "[eval] ... s" lines in
-# the first scifact logs and adjust): a 1000-query config ~1.5-4 h, so a 5-config
-# method ~8-20 h. Time-outs lose nothing: the task resumes on resubmission.
+# Measured (Nov 2026, A100 80GB) per 1000-query config: generation 17-35 min
+# (msmarco < nq < fever), Ragas eval with the vLLM judge 41-52 min (~2.5-3 s/query),
+# plus ~3 min vLLM start per task. A 5-config method is ~6-8 h from scratch;
+# scifact (300 queries) ~3 h. Shorter limits than 2 days start sooner via backfill;
+# a time-out loses nothing (the task resubmits itself and resumes).
+# msmarco-v2* are unmeasured: the first run scans the big corpus for the doc cache.
 if [[ "$ALL_QUERIES" == 1 ]]; then
     DEFAULT_TIME=5-00:00:00            # gpuq maximum
     declare -A JOB_TIME_FOR=()
 else
-    DEFAULT_TIME=2-00:00:00
-    declare -A JOB_TIME_FOR=( [scifact]=0-12:00:00 )
+    DEFAULT_TIME=0-12:00:00
+    declare -A JOB_TIME_FOR=( [scifact]=0-05:00:00 [msmarco-v2-25m]=1-00:00:00
+                              [msmarco-v2-50m]=1-00:00:00 [msmarco-v2]=1-00:00:00 )
 fi
 
 FORCE="${FORCE:-0}"
