@@ -1,11 +1,14 @@
 # RAG eval configs: the 'best 5' strata picks per method/dataset (plotting strata_picks_all_datasets.tsv).
 # dataset<TAB>method<TAB>run folder (absolute). bins/tree/pacmann come from results_simulated,
-# tiptoe/coeus from results. Array index = position among the rows of that dataset, so append
-# new rows at the end of a dataset's block or re-run everything for that dataset.
+# tiptoe/coeus from results. Array index = position of the METHOD within a dataset (one task per
+# method runs all its rows), so rows can be added inside a method's block freely.
 # Columns 4-6 (wan_s, mrr10, recall10) are informational only.
 scifact	bins	/scratch/dblackle/results_simulated/bins_text_scifact_k10_bs500000_dpb10	0.050	0.5919	0.7323
 scifact	bins	/scratch/dblackle/results_simulated/bins_text_scifact_k10_bs10000000_dpb25	0.051	0.6380	0.7856
 scifact	bins	/scratch/dblackle/results_simulated/bins_text_scifact_k10_bs10000000_dpb100	0.051	0.6413	0.8077
+scifact	bins	/scratch/dblackle/results_simulated/bins_vec1_scifact_k10_bs10000000_dpb10	0.051	0.6069	0.7569
+scifact	bins	/scratch/dblackle/results_simulated/bins_vec1_scifact_k10_bs10000000_dpb25	0.052	0.6478	0.8138
+scifact	bins	/scratch/dblackle/results_simulated/bins_vec1_scifact_k10_bs10000000_dpb50	0.053	0.6516	0.8315
 scifact	bins	/scratch/dblackle/results_simulated/bins_vec1_scifact_k10_bs10000000_dpb1000	0.056	0.6483	0.8358
 scifact	bins	/scratch/dblackle/results_simulated/bins_vec0_scifact_k10_bs500000_dpb100	0.377	0.6540	0.8325
 scifact	tree	/scratch/dblackle/results_simulated/tree_grid_scifact_b32_r16_s4_L10_q2_c4_k10	0.205	0.4022	0.4402
@@ -26,6 +29,8 @@ scifact	coeus	/scratch/dblackle/results/coeus_scifact_k10_f16384_tflog	0.209	0.5
 scifact	coeus	/scratch/dblackle/results/coeus_scifact_k10_f32768_tfbm25	0.214	0.6457	0.8063
 msmarco	bins	/scratch/dblackle/results_simulated/bins_text_msmarco_k10_bs1000000_dpb250	0.053	0.1329	0.2613
 msmarco	bins	/scratch/dblackle/results_simulated/bins_text_msmarco_k10_bs100000_dpb1000	0.062	0.1610	0.3234
+msmarco	bins	/scratch/dblackle/results_simulated/bins_vec0_msmarco_k10_bs1000000_dpb100	0.120	0.1469	0.2338
+msmarco	bins	/scratch/dblackle/results_simulated/bins_vec0_msmarco_k10_bs1000000_dpb250	0.148	0.1947	0.3178
 msmarco	bins	/scratch/dblackle/results_simulated/bins_vec0_msmarco_k10_bs500000_dpb500	0.204	0.2230	0.3706
 msmarco	bins	/scratch/dblackle/results_simulated/bins_vec0_msmarco_k10_bs1000000_dpb500_vb50_vr30_ib24	1.651	0.2270	0.3787
 msmarco	bins	/scratch/dblackle/results_simulated/bins_vec0_msmarco_k10_bs1000000_dpb2500_vb100_vr30_ib24	1.794	0.2644	0.4476
