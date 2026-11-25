@@ -81,15 +81,24 @@ trap - EXIT
 # --- 3. vLLM env + judge weights -----------------------------------------------------
 export PIP_CACHE_DIR="${CACHE_ROOT}/pip"
 mkdir -p "$PIP_CACHE_DIR"
-if [[ -x "${VLLM_ENV}/bin/python" ]] && "${VLLM_ENV}/bin/pip" show vllm 2>/dev/null | grep -qx "Version: ${VLLM_VERSION}"; then
+# vllm 0.11.0 does not cap transformers, but transformers 5.x breaks its
+# tokenizer loading (AttributeError: ... all_special_tokens_extended), so the
+# server dies at startup. Pin it, and treat an env with transformers>=5 as broken.
+VLLM_TRANSFORMERS_SPEC="transformers>=4.56,<5"
+vllm_transformers_ok() {
+    "${VLLM_ENV}/bin/python" -c "import sys, transformers; sys.exit(int(transformers.__version__.split('.')[0]) >= 5)" 2>/dev/null
+}
+if [[ -x "${VLLM_ENV}/bin/python" ]] && "${VLLM_ENV}/bin/pip" show vllm 2>/dev/null | grep -qx "Version: ${VLLM_VERSION}" \
+        && vllm_transformers_ok; then
     echo "vLLM ${VLLM_VERSION} env OK."
 else
     if [[ ! -x "${VLLM_ENV}/bin/python" ]]; then
         echo "Creating vLLM env at ${VLLM_ENV}..."
         conda create -y -p "$VLLM_ENV" python=3.12 pip
     fi
-    echo "Installing vllm==${VLLM_VERSION} into ${VLLM_ENV}..."
-    "${VLLM_ENV}/bin/pip" install "vllm==${VLLM_VERSION}"
+    echo "Installing vllm==${VLLM_VERSION} (${VLLM_TRANSFORMERS_SPEC}) into ${VLLM_ENV}..."
+    "${VLLM_ENV}/bin/pip" install "vllm==${VLLM_VERSION}" "$VLLM_TRANSFORMERS_SPEC"
+    vllm_transformers_ok || { echo "ERROR: vLLM env still has transformers>=5"; exit 1; }
 fi
 
 if [[ -f "${JUDGE_HF_PATH}/.complete_${JUDGE_HF_REVISION}" ]]; then
