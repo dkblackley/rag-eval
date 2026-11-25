@@ -307,9 +307,9 @@ def build_judge(args):
 
     backend "ollama": judge served by the task's Ollama (llama3:70b gguf).
     backend "openai": any OpenAI-compatible server, here vLLM serving the AWQ
-    Llama-3-70B-Instruct. Ragas sends answer_relevancy's n=strictness samples
-    as one n=3 request there (Ollama gets 3 separate requests); both sample
-    at ragas' temperature 0.3, so the metric is the same.
+    Llama-3-70B-Instruct. answer_relevancy's n=strictness samples go out as
+    separate n=1 requests (bypass_n, same as Ollama); both backends sample at
+    ragas' temperature 0.3, so the metric is the same.
     """
     from langchain_huggingface import HuggingFaceEmbeddings
     from ragas.llms import LangchainLLMWrapper
@@ -331,6 +331,11 @@ def build_judge(args):
             # runaways fill vLLM's KV cache, the rest queue past the timeout and
             # score NaN. Ragas' JSON answers are far shorter than this cap.
             max_tokens=args.judge_max_tokens,
+            # vLLM 0.11 did not stop on Llama-3's <|eot_id|> for n>1 requests:
+            # the model kept writing "assistant" turns until max_tokens, so
+            # every answer was truncated and Ragas scored it NaN. Pass the stop
+            # ids explicitly on every request.
+            extra_body={"stop_token_ids": [int(t) for t in args.judge_stop_token_ids.split(",") if t]},
         )
     else:
         from langchain_ollama import ChatOllama
@@ -341,7 +346,9 @@ def build_judge(args):
             num_ctx=args.judge_num_ctx,
             base_url=f"http://127.0.0.1:{args.ollama_port}",
         )
-    judge_llm = LangchainLLMWrapper(chat)
+    # bypass_n: otherwise ragas sets .n on this shared client per call, so with
+    # concurrent workers n=1 metrics randomly get n=3 (3x the judge work).
+    judge_llm = LangchainLLMWrapper(chat, bypass_n=True)
 
     print("Initializing Local Embeddings (all-MiniLM-L6-v2)...")
     hf_embeddings = HuggingFaceEmbeddings(
@@ -563,6 +570,9 @@ if __name__ == "__main__":
                    help="Judge context window in tokens.")
     p.add_argument("--judge-max-tokens", type=int, default=1024,
                    help="Max tokens per judge reply (openai/vLLM backend).")
+    p.add_argument("--judge-stop-token-ids", default="128001,128009",
+                   help="Comma-separated stop token ids sent to the vLLM judge "
+                        "(Llama-3 <|end_of_text|>,<|eot_id|>; empty to disable).")
     p.add_argument("--timeout", type=int, default=600,
                    help="Timeout in seconds per LLM/embedding call during evaluation.")
     p.add_argument("--judge-backend", choices=["ollama", "openai"], default="ollama",
